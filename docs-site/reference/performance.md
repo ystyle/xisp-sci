@@ -114,7 +114,42 @@ netlib Reference、OpenBLAS、BLIS、MKL、Apple Accelerate。
 | 纯仓颉（默认） | 471 ms | 2.17 | 1× |
 | BLAS（netlib Reference 3.12.0） | 214 ms | 4.79 | **2.20×** |
 
-换成 OpenBLAS 单核可以到 30~50 GFLOPS（10~15 倍）。
+### 换成 OpenBLAS：只改一行
+
+CBLAS 是标准接口，换实现**不需要改任何仓颉代码**：
+
+```toml
+# cjpm.toml
+link-option = "-lopenblas"        # 原来是 -lcblas -lblas
+```
+
+```shell
+sudo apt install libopenblas-dev  # Debian / Ubuntu
+```
+
+各实现单核 `dgemm`（800×800）：
+
+| 实现 | GFLOPS | 相对纯仓颉 |
+|---|---|---|
+| 纯仓颉（不装这个模块） | 3.3 | 1× |
+| netlib Reference BLAS | 7（实测） | 2.2× |
+| Eigen | 15~25 | — |
+| **OpenBLAS** | 30~50 | **10~15×** |
+| Intel MKL | 40~60 | 12~18× |
+| Apple Accelerate | 30~50 | 10~15× |
+
+注意 `-lcblas` 和 `-lblas` 都要写：`cblas_dgemm` 在 `libcblas` 里，`libblas` 里只有
+Fortran 接口的 `dgemm_`。用 `-lopenblas` 时一个就够。
+
+### 为什么不用 Eigen
+
+Eigen 是 header-only 的 **C++ 模板库**，没有 `.so`、没有 `extern "C"` 函数 ——
+模板在编译期实例化，ABI 不稳定，`foreign` 调不到。要用它必须自己写 C++ 包装层并编译
+成 .so，那就回到了「维护 C++ 工具链」。
+
+而且大矩阵 `dgemm` 上 Eigen（15~25 GFLOPS）打不过 OpenBLAS（30~50），因为它没有
+BLAS 那种汇编级 micro-kernel。Eigen 的价值在**功能全**（LU / QR / SVD / 特征值 / 稀疏），
+不在单个 `matmul` 的极限速度。
 
 有意思的是：netlib Reference 的源码就是**朴素三重循环**，和我们写得几乎一样。
 它快一倍多完全来自 **gfortran -O2 的自动向量化** —— 差距不在算法，在编译器的
