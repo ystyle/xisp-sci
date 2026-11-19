@@ -103,7 +103,7 @@ LispInterpreter([withArray(), withStats()])
 | [快速开始](https://ystyle.top/xisp-sci/guide/01-quickstart) | 五分钟跑通第一个分析 |
 | [Iris 实战](https://ystyle.top/xisp-sci/cookbook/iris) | 十分钟走完真实数据 |
 | [教师工作流](https://ystyle.top/xisp-sci/cookbook/teacher) | 一个不懂编程的人怎么用 |
-| [API 参考](https://ystyle.top/xisp-sci/api/) | 六个模块 75 个符号 |
+| [API 参考](https://ystyle.top/xisp-sci/api/) | 六个模块 87 个符号 |
 | [设计取舍](https://ystyle.top/xisp-sci/reference/design) | 为什么这样设计、放弃了什么 |
 | [性能与基准](https://ystyle.top/xisp-sci/reference/performance) | 全部实测数字 |
 
@@ -115,8 +115,8 @@ LispInterpreter([withArray(), withStats()])
 |---|---|---|
 | `xisp_array` | 9 | ndarray：构造、变形、广播、算术 |
 | `xisp_io` | 8 | CSV 读写（含 64KB 流式，内存与文件大小无关） |
-| `xisp_stats` | 18 | 描述统计、分组、假设检验、图表数据 |
-| `xisp_linalg` | 9 | 矩阵乘法、LU/QR/Cholesky、解方程、最小二乘 |
+| `xisp_stats` | 42 | 描述统计、分组、假设检验、分布函数、随机数、图表数据 |
+| `xisp_linalg` | 15 | 矩阵乘法、LU/QR/Cholesky/SVD/特征分解、解方程、最小二乘、秩与伪逆、PCA |
 | `xisp_signal` | 6 | FFT（任意长度）、卷积、IIR 滤波、窗函数 |
 | `xisp_num` | 7 | 插值、多项式拟合、积分、优化、ODE |
 
