@@ -12,3 +12,8 @@ target-win
 
 # 本地开发时指向工作区内 xisp 源码的辅助文件（不参与构建）
 local-xisp.sh
+
+# 文档站构建产物与依赖
+docs/dist
+docs-site/node_modules
+docs-site/.vitepress/cache
