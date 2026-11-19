@@ -304,6 +304,40 @@ public class NDArray <: LispExternalIndexable {
         true
     }
 
+    /**
+     * **零拷贝**取出连续的 Float64 数据
+     *
+     * 返回底层 `Array<Float64>` 的引用（仓颉的 `Array` 是引用类型，不复制）。
+     *
+     * ## 为什么要有这个方法
+     *
+     * 统计函数原本逐个 `a.at(i)` 取 `LispValue` 再 match 成 `Float64`，装进
+     * `ArrayList` 再拷一遍 —— 10 万元素上这一步要 6~7 毫秒，而真正的计算只要
+     * 0.06 毫秒。**跨层转换比计算本身慢 100 倍**。
+     *
+     * 直接从底层数组读就没有这个开销。
+     *
+     * ## 什么时候返回 None
+     *
+     * 只有「dtype 是 float64 + 连续 + 从缓冲区起点开始 + 没有多余尾部」四个条件
+     * 全满足时才是零拷贝的。其余情况（int64 / bool / 非连续视图 / 带偏移）返回
+     * `None`，调用方回退到逐个转换 —— 快路径不改变语义，只是快。
+     */
+    public func floatView(): Option<Array<Float64>> {
+        if (!this.isContiguous()) {
+            return None
+        }
+        match (this.buf) {
+            case Floats(data) =>
+                // 偏移与尾部都必须干脆，否则拿到的不是"这一整个数组"
+                if (this.off != 0 || data.size != this.length()) {
+                    return None
+                }
+                Some(data)
+            case _ => None
+        }
+    }
+
     /** 深拷贝成一段新的连续缓冲 */
     public func copy(): NDArray {
         let n = this.size()

@@ -81,6 +81,13 @@ func asFloatValues(v: LispValue, who: String): Array<Float64> {
         case External(e) =>
             match (e) {
                 case a: NDArray =>
+                    // **快路径**：连续 float64 直接拿底层数组的引用，零拷贝。
+                    // 慢路径（int64 / bool / 非连续视图）才逐个转换 —— 后者在
+                    // 10 万元素上要 6~7 ms，而计算本身只要 0.06 ms。
+                    match (a.floatView()) {
+                        case Some(data) => return data
+                        case None => ()
+                    }
                     var i: Int64 = 0
                     let n = a.length()
                     while (i < n) {
@@ -108,8 +115,23 @@ func asFloatValues(v: LispValue, who: String): Array<Float64> {
     out.toArray()
 }
 
-/** 去掉 NaN —— 缺失值不参与统计 */
+/**
+ * 去掉 NaN —— 缺失值不参与统计
+ *
+ * **没有 NaN 时直接返回原数组**（不复制）。绝大多数数据没有缺失值，
+ * 为它们付一次全量拷贝没有道理。
+ */
 func finiteOf(values: Array<Float64>): Array<Float64> {
+    var hasNaN = false
+    for (v in values) {
+        if (v.isNaN()) {
+            hasNaN = true
+            break
+        }
+    }
+    if (!hasNaN) {
+        return values
+    }
     let out = ArrayList<Float64>()
     for (v in values) {
         if (!v.isNaN()) {

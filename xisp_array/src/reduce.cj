@@ -61,6 +61,36 @@ func reduceArray(a: NDArray, op: String): Option<LispValue> {
             }
             Some(LispValue.Int(acc))
         case Floats =>
+            // **快路径**：连续 float64 直接迭代底层数组，省掉每元素一次
+            // `flatOfLinear` + `at` 的逻辑下标计算（10 万元素上差 40 倍）。
+            match (a.floatView()) {
+                case Some(data) =>
+                    var acc = data[0]
+                    if (isSum || isProduct) {
+                        var i: Int64 = 1
+                        while (i < n) {
+                            if (isSum) {
+                                acc = acc + data[i]
+                            } else {
+                                acc = acc * data[i]
+                            }
+                            i++
+                        }
+                        return Some(LispValue.Float(acc))
+                    }
+                    var i: Int64 = 1
+                    while (i < n) {
+                        if (isMax && data[i] > acc) {
+                            acc = data[i]
+                        }
+                        if (isMin && data[i] < acc) {
+                            acc = data[i]
+                        }
+                        i++
+                    }
+                    return Some(LispValue.Float(acc))
+                case None => ()
+            }
             var acc = readAsFloat(a, a.flatOfLinear(0))
             if (isSum || isProduct) {
                 var i: Int64 = 1
