@@ -40,7 +40,7 @@
 | `cangjie::inv` | 逆矩阵 |
 | `cangjie::lstsq` | `(lstsq X y)` 最小二乘，返回系数 |
 
-`lstsq` 走 QR 而不是正规方程 —— 后者把条件数平方。
+`lstsq` 走 QR 而不是正规方程，因为后者把条件数平方。
 
 ## 错误
 

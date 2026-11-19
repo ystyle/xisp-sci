@@ -51,7 +51,7 @@ bash scripts/check-members.sh   # README、制品清单、原生依赖白名单
 ```
 
 `check-members.sh` 读 `workspace.toml` 的 `[workspace.publish] exclude` 作为发布范围的
-单一来源 —— 脚本不另立判据。
+单一来源，脚本不另立判据。
 
 ## 版本
 
