@@ -17,17 +17,17 @@ jobs:
           # 与本地开发环境一致（工作区规范：从 2026-10-10 起统一 1.2.0）。
           version: 1.2.0
 
-      # 工作区版本一致性闸门。
-      # 工作区内的本地依赖解析不校验版本号（写错版本也能构建通过），lockstep 只能靠它兜住。
-      - name: Install cjpm-ws
-        run: cjpm install ystyle::cjpm_ws-0.1.6 --name cjpm-ws
-
-      - name: Workspace version gate
-        run: cjpm ws check
-
-      # 成员配置闸门：`cjpm ws check` 只管版本 lockstep，管不到制品范围与发布元数据。
-      # 这几类问题只在发版时才爆，那时已经不可逆 —— 前置到 CI。
-      - name: Member config gate
+      # 成员配置与版本一致性闸门。
+      #
+      # 工作区内的本地依赖解析不校验版本号（写错版本也能构建通过），所以 lockstep
+      # 必须显式查。`scripts/check-members.sh` 覆盖得比 `cjpm ws check` 更全：
+      # lockstep 版本、cjc-version 一致、test-dependencies 版本、制品范围、
+      # 原生依赖白名单 —— 后三类是 `cjpm ws check` 管不到的，而它们只在发版时才爆，
+      # 那时已经不可逆。
+      #
+      # 因此这里不再安装 cjpm-ws（0.1.6 的 cjpm.toml 缺 stdx.compress.zlib 依赖，
+      # `cjpm install` 会失败；CI 也不需要它的 publish/bump 能力）。
+      - name: Member config and version gate
         run: bash scripts/check-members.sh
 
       - name: Build
