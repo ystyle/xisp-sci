@@ -3,7 +3,7 @@
   name = "bench"
   organization = "ystyle"
   description = "xisp-sci 基准测试（不发布）：数据集冒烟、matmul 规模扫描、稀疏基线"
-  version = "0.2.0"
+  version = "0.3.0"
   output-type = "executable"
   compile-option = "-O2 -Woff unused"
   override-compile-option = ""
@@ -14,7 +14,7 @@
   repository = "https://gitcode.com/ystyle/xisp-sci"
 
 [dependencies]
-  "ystyle::xisp" = { path = "../../xisp/core" }
-  "ystyle::xisp_sci" = "0.2.0"
+  "ystyle::xisp" = "0.9.2"
+  "ystyle::xisp_sci" = "0.3.0"
   # 直接构造 ndarray 注入解释器（Matrix Market 基准用）
-  "ystyle::xisp_array" = "0.2.0"
+  "ystyle::xisp_array" = "0.3.0"
