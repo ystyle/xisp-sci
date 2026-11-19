@@ -7,11 +7,12 @@
 1. **依赖 xisp 只能走中心仓版本号**（`"ystyle::xisp" = "x.y.z"`），不用 `{ path = ... }`。
    path 依赖发布不了。要 xisp 加新 API，得先发那个版本。
 2. **族内严格单向依赖**：只有 `xisp_array` 可以被同族其它模块依赖；`io` / `linalg` /
-   `stats` / `signal` 互不依赖；`xisp_sci` 只做聚合。不许反向依赖 `repl` / `cli` / `xisp_bc`。
+   `stats` / `signal` / `num` 互不依赖；`xisp_sci` 只做聚合。不许反向依赖 `repl` / `cli` / `xisp_bc`。
 3. **模块名不能含连字符**：仓库叫 `xisp-sci`，模块必须是 `xisp_array` 这种。
 
-数组的归属（专用 `Array` 变体 vs 纯 `External`）与符号命名策略**还没拍板**，见 xisp 仓
-`docs/plans/2026-10-11-sci-family-design.md` §7/§8 —— 动手前先看，别自己定。
+数组的归属（专用 `Array` 变体 vs 纯 `External`）与符号命名策略**还没拍板**，
+见 [`docs/plans/2026-11-19-scope-and-roadmap.md`](docs/plans/2026-11-19-scope-and-roadmap.md) §6 ——
+动手前先看，别自己定。**范围与阶段路线也在那里，它是本仓的单一来源。**
 
 ## 测试
 
@@ -47,6 +48,6 @@ bash scripts/check-members.sh # 成员配置闸门
 ├── workspace.toml    # cjpm-ws 产品清单（统一版本 / 发布范围）
 ├── xisp_array/       # 模块 ystyle::xisp_array —— 数组地基（仓库里唯一的地基）
 ├── xisp_tests/       # 模块 ystyle::xisp_tests —— 契约 / 集成测试（不发布）
-├── docs/plans/       # 设计文档
+├── docs/             # 范围与路线图（plans/）+ 上游平台愿景（design-platform.md）
 └── scripts/          # 闸门脚本
 ```

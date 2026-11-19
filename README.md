@@ -27,22 +27,27 @@ CI 闸门），`xisp_array` 目前只有域声明、没有符号。数组的函�
         xisp（core：LispValue / External 协议 / 域装配 / 中断接缝）
               ↑
         xisp_array            ← 唯一地基：dtype / shape / strides / 广播 / 视图
-        ↑    ↑    ↑    ↑
-   xisp_io  xisp_linalg  xisp_stats  xisp_signal
-        ↑    ↑    ↑    ↑
-            xisp_sci           ← 门面：聚合 + 高层 API，不含重实现
+        ↑    ↑    ↑    ↑    ↑
+   xisp_io  xisp_linalg  xisp_stats  xisp_signal  xisp_num
+        ↑    ↑    ↑    ↑    ↑
+                xisp_sci           ← 门面：聚合 + 高层 API，不含重实现
 ```
 
 规则：
 
 1. `array` 是唯一地基，**只有它可以被同族其它模块依赖**；
-2. `io` / `linalg` / `stats` / `signal` **互相不得依赖**（各自只依赖 `array` + core）；
+2. `io` / `linalg` / `stats` / `signal` / `num` **互相不得依赖**（各自只依赖 `array` + core）；
 3. `sci` 只做聚合 / re-export 与跨域工作流，不重复实现；
 4. 全族**不得反向依赖** core 以外的语言本体设施（`repl` / `cli` / `bc`）。
+
+`xisp_num`（插值 / 拟合 / 优化 / ODE / 数值积分）不在最初的分族方案里，是补的一个缺口 ——
+这些数值方法原先没有归属模块。
 
 **当前只有 `xisp_array` 一个成员**。其余成员在 `array` 的 API 面定稿后按需加入 —— 它们全部
 依赖 `array`，地基没定型时连签名都写不出来，提前占位只是给 lockstep 版本、发布清单和
 `check-members.sh` 增加纯维护负担。
+
+范围、边界判据、阶段路线图见 [`docs/plans/2026-11-19-scope-and-roadmap.md`](docs/plans/2026-11-19-scope-and-roadmap.md)。
 
 ## 与 xisp 的版本关系
 
@@ -80,16 +85,16 @@ bash scripts/check-members.sh # 成员配置闸门（制品范围 / 元数据 / 
 
 ## 待决事项
 
-数组相关的设计决策还没全部拍板，详见 xisp 仓
-[`docs/plans/2026-10-11-sci-family-design.md` §8](https://gitcode.com/ystyle/xisp/blob/master/docs/plans/2026-10-11-sci-family-design.md)：
+全部列在 [`docs/plans/2026-11-19-scope-and-roadmap.md` §6](docs/plans/2026-11-19-scope-and-roadmap.md)：
+默认布局（行优先 / 列优先）、符号命名策略、`linalg` 的 C 后端形态、数组是否要 core 专用变体、
+`io` 与 `xisp_json` 的关系。
 
-| # | 问题 | 现状 |
-|---|---|---|
-| S2 | 数组的归属：只加 `External`（A）/ 加专用 `Array` 变体（B）/ 完整实现进 core（C） | 待拍板，判据是"JIT 是否为数组特化" |
-| S4 | linalg / signal 的性能后端形态 | 建议先纯仓颉，把"同模块内运行时探测"留作后路 |
-| S5 | 符号命名策略：命名空间还是前缀 | 待定 |
+已经定下来的两条前置：
 
-S1（`External` 接缝）已随 xisp 0.6.0 落地，S3（仓库划分）已按本文档的独立仓方案落地。
+- **标量数学进 core，不进本仓** —— `(sin 1.0)` 是语言能力，`(sin arr)` 是数组能力，
+  同名靠能力接口分派，不搞两套名字；
+- **第一版 dtype 只做 `Int64` / `Float64` / `Bool`** —— core 没有复数标量类型，
+  加它是 `LispValue` 加变体（~24 处 match），等真有需求再议。
 
 ## 许可
 
