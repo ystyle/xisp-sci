@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Zxilly/setup-cangjie@v3
+        with:
+          channel: sts
+          # 与本地开发环境一致（工作区规范：从 2026-10-10 起统一 1.2.0）。
+          version: 1.2.0
+
+      # 工作区版本一致性闸门。
+      # 工作区内的本地依赖解析不校验版本号（写错版本也能构建通过），lockstep 只能靠它兜住。
+      - name: Install cjpm-ws
+        run: cjpm install ystyle::cjpm_ws-0.1.6 --name cjpm-ws
+
+      - name: Workspace version gate
+        run: cjpm ws check
+
+      # 成员配置闸门：`cjpm ws check` 只管版本 lockstep，管不到制品范围与发布元数据。
+      # 这几类问题只在发版时才爆，那时已经不可逆 —— 前置到 CI。
+      - name: Member config gate
+        run: bash scripts/check-members.sh
+
+      - name: Build
+        run: cjpm build
+
+      - name: Test
+        run: cjpm test --no-progress

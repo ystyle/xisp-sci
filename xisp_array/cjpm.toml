@@ -1,0 +1,20 @@
+[package]
+  cjc-version = "1.0.0"
+  name = "xisp_array"
+  organization = "ystyle"
+  description = "星枢科学计算地基：NDArray 的 dtype / shape / strides / 广播 / 视图"
+  version = "0.1.0"
+  output-type = "static"
+  compile-option = "-O2 -Woff unused"
+  override-compile-option = ""
+  link-option = ""
+  # 锚定到包根：未锚定的 `src` 会匹配任意层级的同名目录，把子目录内容一并打进制品
+  include = ["/src"]
+  license = ["MIT"]
+  authors = ["ystyle"]
+  repository = "https://gitcode.com/ystyle/xisp-sci"
+
+[dependencies]
+  # 跨 workspace 依赖走中心仓的精确版本号（不用 path 依赖：path 依赖发布不了）。
+  # 这也意味着 xisp 侧加 API 之后，本仓要等新版发布才能用上 —— 见 README「与 xisp 的版本关系」。
+  "ystyle::xisp" = "0.8.0"

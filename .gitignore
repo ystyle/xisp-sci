@@ -1,0 +1,14 @@
+target
+.cache
+.vscode
+cov_output
+*.cj.macrocall
+*.gcda
+*.gcno
+log.txt
+temp-*
+.arts/
+target-win
+
+# 本地开发时指向工作区内 xisp 源码的辅助文件（不参与构建）
+local-xisp.sh
