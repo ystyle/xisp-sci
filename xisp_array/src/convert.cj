@@ -254,3 +254,24 @@ public func arrayFromArgs(args: ArrayList<LispValue>): NDArray {
     }
     arrayFromLisp(listFrom(args))
 }
+
+// ===== 供其它模块使用的公开构造入口 =====
+//
+// `NDArray` 的 init 是 internal（外部不该绕过 shape/strides 的一致性约束），
+// 但别的模块（如 `xisp_io` 从 CSV 列构造数组）确实需要"从仓颉数组造 1D 数组"。
+// 这三个函数是那条受控入口：只提供合法的连续 1D 布局，不做任意 strides。
+
+/** 从仓颉数组构造 1D int64 数组 */
+public func ndarrayFromInts(values: Array<Int64>): NDArray {
+    NDArray(Ints(values.clone()), 0, [values.size], [1])
+}
+
+/** 从仓颉数组构造 1D float64 数组 */
+public func ndarrayFromFloats(values: Array<Float64>): NDArray {
+    NDArray(Floats(values.clone()), 0, [values.size], [1])
+}
+
+/** 从仓颉数组构造 1D bool 数组 */
+public func ndarrayFromBools(values: Array<Bool>): NDArray {
+    NDArray(Bools(values.clone()), 0, [values.size], [1])
+}

@@ -1,0 +1,18 @@
+[package]
+  cjc-version = "1.0.0"
+  name = "xisp_io"
+  organization = "ystyle"
+  description = "星枢科学计算数据 IO：CSV 读写与列类型推断"
+  version = "0.2.0"
+  output-type = "static"
+  compile-option = "-O2 -Woff unused"
+  override-compile-option = ""
+  link-option = ""
+  include = ["/src"]
+  license = ["MIT"]
+  authors = ["ystyle"]
+  repository = "https://gitcode.com/ystyle/xisp-sci"
+
+[dependencies]
+  "ystyle::xisp" = { path = "../../xisp/core" }
+  "ystyle::xisp_array" = "0.2.0"

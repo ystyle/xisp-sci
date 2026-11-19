@@ -1,7 +1,7 @@
 [workspace]
-  members = ["xisp_array", "xisp_tests"]
-  build-members = ["xisp_array", "xisp_tests"]
-  test-members = ["xisp_array", "xisp_tests"]
+  members = ["xisp_array", "xisp_io", "xisp_stats", "xisp_tests"]
+  build-members = ["xisp_array", "xisp_io", "xisp_stats", "xisp_tests"]
+  test-members = ["xisp_array", "xisp_io", "xisp_stats", "xisp_tests"]
   compile-option = ""
   override-compile-option = ""
   link-option = ""
