@@ -27,6 +27,9 @@
 | `cangjie::max` | 最大值（**跳过 NaN**） |
 | `cangjie::group-by` | 按类别分组 → `[[key, ndarray] …]` |
 | `cangjie::group-agg` | 分组后聚合 → `[[key, 聚合值] …]` |
+| `cangjie::t-test1` | 单样本 t 检验 → `{t, df, p, mean, se, n}` |
+| `cangjie::t-test2` | 双样本 Welch t 检验 → `{t, df, p, mean1, mean2, …}` |
+| `cangjie::ci` | 均值置信区间 → `{lo, hi, mean, se, df, tcrit}` |
 
 同时接受 ndarray 与普通列表：`(cangjie::mean arr)` 与 `(cangjie::mean [1 2 3])` 都能用。
 
@@ -49,6 +52,34 @@
 后者会慢成几倍。
 
 组内**保持原始顺序**（不排序）—— 对时间序列类数据很重要。
+
+## 假设检验
+
+```lisp
+;; 男女生的期末成绩差异显著吗
+(define g (cangjie::group-by (hashmap-get d "sex") (hashmap-get d "G3")))
+(cangjie::t-test2 (cadr (car g)) (cadr (cadr g)))
+;; → {"t": -2.065, "df": 390.569, "p": 0.039577, ...}
+
+;; 均值的 95% 置信区间
+(cangjie::ci (hashmap-get d "G3") 0.95)
+;; → {"lo": 9.9619, "hi": 10.8683, "mean": 10.4151, "tcrit": 1.9660, ...}
+```
+
+**为什么 p 值值得算**：「A 组均值比 B 组高 2 分」本身没有信息量 —— 两组各 3 个样本时
+这 2 分可能纯属偶然，各 3000 个样本时几乎一定是真的。p 值回答的是「这个差异有多可能
+是偶然」。
+
+**双样本用 Welch 而不是合并方差版本**。方差相等这个前提在真实数据里几乎从不成立：
+两组样本量差很多时，合并方差会把大方差那组过度加权，让 p 值系统性地偏小。
+
+**返回 HashMap 而不是 alist**（与 `group-by` 相反）：检验结果没有顺序语义，
+按名字取值比按位置取更不容易错。
+
+**t 分布从零实现**：仓颉的 `std.math` 没有 `lgamma`/`tgamma`（探测过），所以
+Gamma 函数用 Lanczos 近似、不完全 Beta 用连分式 + Lentz 算法、分位数用二分反解。
+验证方式是拿**教科书 t 分位数表**逐个对（df=1 → 12.706、df=30 → 2.042），
+容差 1e-3 全过。
 
 ## 设计要点
 

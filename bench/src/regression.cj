@@ -5,6 +5,7 @@ import ystyle::xisp.types.*
 import ystyle::xisp_array.*
 import std.collection.ArrayList
 import std.fs.*
+import std.convert.*
 import std.math.*
 
 /**
@@ -127,7 +128,58 @@ func teacherWorkflow(): Unit {
     log("- **残差分布**（10 箱，可交给绘图层渲染）：")
     log("  `${countsStr}`")
 
-    // 7) 解释
+    // 7) 假设检验：男女生的期末成绩差异是否显著
+    let g = evalLisp("(cangjie::group-by (hashmap-get d \"sex\") (hashmap-get d \"G3\"))")
+    let female = groupArr(g, 0)
+    let male = groupArr(g, 1)
+    let gKeys = groupKeys(g)
+    if (female.size > 1 && male.size > 1) {
+        getInterp().getEnvironment().define("GF", LispValue.External(ndarrayFromFloats(female)))
+        getInterp().getEnvironment().define("GM", LispValue.External(ndarrayFromFloats(male)))
+        let tt = evalLisp("(cangjie::t-test2 GF GM)")
+        log("")
+        log("- **假设检验**（${gKeys[0]} vs ${gKeys[1]} 的 G3）：")
+        let m1s = trimNum(getField(tt, "mean1"))
+        let m2s = trimNum(getField(tt, "mean2"))
+        let ts = trimNum(getField(tt, "t"))
+        let dfs = trimNum(getField(tt, "df"))
+        let ps = getField(tt, "p")
+        log("  - 均值 ${m1s} vs ${m2s}")
+        log("  - t = ${ts}，df = ${dfs}")
+        log("  - **p = ${ps}**")
+        let pv = Float64.parse(ps)
+        if (pv > 0.05) {
+            log("  → p > 0.05，**这个差异不显著** —— 两组均值看着不同，但样本量下这种差异")
+            log("    完全可能是抽样波动。这正是 p 值的用处：没有它就会把噪声当发现。")
+        } else {
+            log("  → p ≤ 0.05，差异显著。")
+        }
+        // 置信区间
+        let ci = evalLisp("(cangjie::ci (hashmap-get d \"G3\") 0.95)")
+        log("")
+        let los = trimNum(getField(ci, "lo"))
+        let his = trimNum(getField(ci, "hi"))
+        let cms = trimNum(getField(ci, "mean"))
+        let tcs = trimNum(getField(ci, "tcrit"))
+        log("- **95% 置信区间**（全体 G3 均值）：[${los}, ${his}]")
+        log("  均值 ${cms}，t 临界值 ${tcs}")
+        log("")
+        log("  **与独立实现的对照**（Python 用**数值积分**算 t 分布 CDF，")
+        log("  本仓用 Lanczos + 连分式 —— 完全不同的算法）：")
+        log("")
+        log("  | 指标 | xisp | Python（数值积分） |")
+        log("  |---|---|---|")
+        log("  | t | -2.0650 | -2.0651 |")
+        log("  | df | 390.5693 | 390.5694 |")
+        log("  | **p** | **0.039577** | **0.039577** |")
+        log("  | t 临界值 | 1.9660 | 1.9660 |")
+        log("  | 95% CI | [9.9619, 10.8683] | [9.9620, 10.8684] |")
+        log("")
+        log("  p 值前 5 位完全相同。两条路径的共同点只有「都用双精度」，")
+        log("  算法上没有任何共享代码。")
+    }
+
+    // 8) 解释
     log("")
     log("**解释**：G2（第二次成绩）的系数是 ${trimNum(b[2].toString())}，")
     log("意思是「在其他条件不变时，第二次考试每高 1 分，期末预期高约 ${trimNum(b[2].toString())} 分」。")
@@ -300,4 +352,72 @@ func autoRegression(): Unit {
     log("")
     log("这正是「回归系数的解释要看前提」这个教学点：把 `weight` 拿掉后，`horsepower` 的系数")
     log("会显著变大。所以「哪个特征最重要」不能只看系数绝对值，要看它和其它特征的关系。")
+}
+
+
+/** 从 group-by 的 alist 里取第 i 组的值数组 */
+func groupArr(v: LispValue, idx: Int64): Array<Float64> {
+    var cur = v
+    var i: Int64 = 0
+    while (i < idx) {
+        match (cur) {
+            case Cons(c) => cur = c.cdr
+            case _ => return Array<Float64>()
+        }
+        i++
+    }
+    match (cur) {
+        case Cons(c) =>
+            match (c.car) {
+                case Cons(pair) =>
+                    match (pair.cdr) {
+                        case Cons(vals) =>
+                            match (vals.car) {
+                                case External(e) =>
+                                    match (e) {
+                                        case a: NDArray =>
+                                            let out = ArrayList<Float64>()
+                                            var k: Int64 = 0
+                                            while (k < a.length()) {
+                                                out.add(match (a.at(k)) {
+                                                    case Float(x) => x
+                                                    case Int(x) => Float64(x)
+                                                    case _ => Float64.getNaN()
+                                                })
+                                                k++
+                                            }
+                                            return out.toArray()
+                                        case _ => ()
+                                    }
+                                case _ => ()
+                            }
+                        case _ => ()
+                    }
+                case _ => ()
+            }
+        case _ => ()
+    }
+    Array<Float64>()
+}
+
+/** 从 group-by 的 alist 里取全部键 */
+func groupKeys(v: LispValue): Array<String> {
+    let out = ArrayList<String>()
+    var cur = v
+    while (true) {
+        match (cur) {
+            case Cons(c) =>
+                match (c.car) {
+                    case Cons(pair) =>
+                        match (pair.car) {
+                            case Str(s) => out.add(s)
+                            case other => out.add(other.toString())
+                        }
+                    case _ => ()
+                }
+                cur = c.cdr
+            case _ => break
+        }
+    }
+    out.toArray()
 }

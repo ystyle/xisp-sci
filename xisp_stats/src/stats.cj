@@ -33,7 +33,8 @@ let STATS_SYMBOLS: Array<String> = [
     "cangjie::mean", "cangjie::median", "cangjie::std", "cangjie::std-pop",
     "cangjie::var", "cangjie::quantile", "cangjie::corr", "cangjie::cov",
     "cangjie::histogram", "cangjie::min", "cangjie::max",
-    "cangjie::group-by", "cangjie::group-agg"]
+    "cangjie::group-by", "cangjie::group-agg",
+    "cangjie::t-test1", "cangjie::t-test2", "cangjie::ci"]
 
 public func statsDomain(): LispCapability {
     SimpleCapability(
@@ -474,6 +475,42 @@ func registerStats(ctx: CapabilityContext): Unit {
                 k++
             }
             listOf(pairs.toArray())
+        })
+    }))
+
+    // (cangjie::t-test1 x mu0) —— 单样本 t 检验
+    env.define("cangjie::t-test1", NativeFunc({ args =>
+        guardedStats({ =>
+            if (args.size != 2) {
+                throw IllegalArgumentException("cangjie::t-test1 需要 (x mu0) 两个参数")
+            }
+            let x = asFloatValues(args[0], "cangjie::t-test1")
+            let mu0 = numOf(args[1], "cangjie::t-test1")
+            tTestOne(x, mu0)
+        })
+    }))
+
+    // (cangjie::t-test2 x y) —— 双样本 Welch t 检验
+    env.define("cangjie::t-test2", NativeFunc({ args =>
+        guardedStats({ =>
+            if (args.size != 2) {
+                throw IllegalArgumentException("cangjie::t-test2 需要 (x y) 两个参数")
+            }
+            let x = asFloatValues(args[0], "cangjie::t-test2")
+            let y = asFloatValues(args[1], "cangjie::t-test2")
+            tTestTwo(x, y)
+        })
+    }))
+
+    // (cangjie::ci x level) —— 均值置信区间
+    env.define("cangjie::ci", NativeFunc({ args =>
+        guardedStats({ =>
+            if (args.size != 2) {
+                throw IllegalArgumentException("cangjie::ci 需要 (x level) 两个参数")
+            }
+            let x = asFloatValues(args[0], "cangjie::ci")
+            let level = numOf(args[1], "cangjie::ci")
+            confidenceInterval(x, level)
         })
     }))
 
