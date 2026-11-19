@@ -3,7 +3,7 @@
   name = "xisp_signal"
   organization = "ystyle"
   description = "星枢科学计算信号处理：FFT、卷积、IIR 滤波与窗函数"
-  version = "0.3.1"
+  version = "0.4.0"
   output-type = "static"
   compile-option = "-O2 -Woff unused"
   override-compile-option = ""
@@ -15,4 +15,4 @@
 
 [dependencies]
   "ystyle::xisp" = "0.9.2"
-  "ystyle::xisp_array" = "0.3.1"
+  "ystyle::xisp_array" = "0.4.0"

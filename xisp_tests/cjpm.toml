@@ -3,7 +3,7 @@
   name = "xisp_tests"
   organization = "ystyle"
   description = "xisp-sci 契约 / 集成测试：只用 public API 验证数组行为（不发布）"
-  version = "0.3.1"
+  version = "0.4.0"
   output-type = "static"
   compile-option = "-O2 -Woff unused"
   override-compile-option = ""
@@ -15,14 +15,14 @@
 
 [dependencies]
   "ystyle::xisp" = "0.9.2"
-  "ystyle::xisp_array" = "0.3.1"
-  "ystyle::xisp_io" = "0.3.1"
-  "ystyle::xisp_stats" = "0.3.1"
-  "ystyle::xisp_linalg" = "0.3.1"
-  "ystyle::xisp_signal" = "0.3.1"
-  "ystyle::xisp_num" = "0.3.1"
+  "ystyle::xisp_array" = "0.4.0"
+  "ystyle::xisp_io" = "0.4.0"
+  "ystyle::xisp_stats" = "0.4.0"
+  "ystyle::xisp_linalg" = "0.4.0"
+  "ystyle::xisp_signal" = "0.4.0"
+  "ystyle::xisp_num" = "0.4.0"
   # 门面：withSci() 一次装齐全族的路径也要在三后端下验一遍
-  "ystyle::xisp_sci" = "0.3.1"
+  "ystyle::xisp_sci" = "0.4.0"
   # 三后端（AST / 字节码 / JIT）差分：数组全部走 NativeFunc，理论上一致，
   # 但 `length` / `nth` 是 core 的通用内建，要确认它们在后端切换后仍走同一分派路径。
   "ystyle::xisp_bc" = "0.9.2"
