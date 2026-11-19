@@ -177,3 +177,195 @@ func tTwoSidedP(t: Float64, df: Float64): Float64 {
     let c = tCdf(abs(t), df)
     2.0 * (1.0 - c)
 }
+
+// ───────────────────────── 不完全 Gamma ─────────────────────────
+//
+// 卡方、泊松、正态（经 erf）三个分布族的 CDF 都归到这一个函数上。
+// 这是整片分布函数的地基：补上它，正态 / 卡方 / 泊松的 `cdf` 都只剩几行。
+//
+// 两个展开方向按 `x` 与 `a` 的大小关系选（与 `betaInc` 同一个思路）：
+// `x < a+1` 时级数收敛快，否则连分式收敛快。选错方向不是算不准，是**根本不收敛**。
+
+/**
+ * 正则化下不完全 Gamma `P(a,x)` 的级数展开
+ *
+ * `P(a,x) = e^{-x} x^a / Γ(a) · Σ_{n≥0} x^n / (a(a+1)…(a+n))`
+ */
+func gammaSeries(a: Float64, x: Float64): Float64 {
+    var ap = a
+    var del = 1.0 / a
+    var sum = del
+    var n: Int64 = 0
+    while (n < 1000) {
+        ap = ap + 1.0
+        del = del * x / ap
+        sum = sum + del
+        if (abs(del) < abs(sum) * 1.0e-17) {
+            break
+        }
+        n++
+    }
+    sum * exp(-x + a * log(x) - lgammaOf(a))
+}
+
+/**
+ * 正则化上不完全 Gamma `Q(a,x)` 的连分式（Lentz 算法）
+ *
+ * `Q(a,x) = e^{-x} x^a / Γ(a) · 1/(x+1−a − 1·(1−a)/(x+3−a − 2·(2−a)/(…)))`
+ */
+func gammaCF(a: Float64, x: Float64): Float64 {
+    let fpMin = 1.0e-300
+    var b = x + 1.0 - a
+    var c = 1.0 / fpMin
+    var d = 1.0 / b
+    var h = d
+    var i: Int64 = 1
+    while (i <= 1000) {
+        let an = -Float64(i) * (Float64(i) - a)
+        b = b + 2.0
+        d = an * d + b
+        if (abs(d) < fpMin) {
+            d = fpMin
+        }
+        c = b + an / c
+        if (abs(c) < fpMin) {
+            c = fpMin
+        }
+        d = 1.0 / d
+        let del = d * c
+        h = h * del
+        if (abs(del - 1.0) < 1.0e-17) {
+            break
+        }
+        i++
+    }
+    exp(-x + a * log(x) - lgammaOf(a)) * h
+}
+
+/** 正则化下不完全 Gamma `P(a,x)`；`x = 0` 时取 0（`a·log x` 会算成 NaN，要拦在前头） */
+func gammaIncLower(a: Float64, x: Float64): Float64 {
+    if (a <= 0.0 || x < 0.0) {
+        return Float64.getNaN()
+    }
+    if (x == 0.0) {
+        return 0.0
+    }
+    if (x < a + 1.0) {
+        gammaSeries(a, x)
+    } else {
+        1.0 - gammaCF(a, x)
+    }
+}
+
+/** 正则化上不完全 Gamma `Q(a,x) = 1 − P(a,x)`；大 `x` 时比 `1 − gammaIncLower` 保精度 */
+func gammaIncUpper(a: Float64, x: Float64): Float64 {
+    if (a <= 0.0 || x < 0.0) {
+        return Float64.getNaN()
+    }
+    if (x == 0.0) {
+        return 1.0
+    }
+    if (x < a + 1.0) {
+        1.0 - gammaSeries(a, x)
+    } else {
+        gammaCF(a, x)
+    }
+}
+
+// ───────────────────────── 误差函数 ─────────────────────────
+//
+// 仓颉的 `std.math` 没有 `erf` / `erfc`（与没有 `lgamma` 同理）。
+// 但不完全 Gamma 正好能给出它们：`erf(x) = P(1/2, x²)`、`erfc(x) = Q(1/2, x²)`（`x ≥ 0`）。
+// 所以这两个函数只是上面两个的换名，没有新的数值方法。
+
+/** 误差函数 `erf(x) = (2/√π)·∫₀ˣ e^{−t²}dt` */
+func erfOf(x: Float64): Float64 {
+    if (x == 0.0) {
+        return 0.0
+    }
+    let p = gammaIncLower(0.5, x * x)
+    if (x > 0.0) {
+        p
+    } else {
+        -p
+    }
+}
+
+/**
+ * 互补误差函数 `erfc(x) = 1 − erf(x)`
+ *
+ * 左尾要单独算：`Φ(z)` 在 `z` 很负时是 `0.5·erfc(−z/√2)`，
+ * 而 `1 − erf(y)` 在 `y ≈ 6` 处会因相消丢光有效位。所以用 `Q` 而不是 `1 − P`。
+ */
+func erfcOf(x: Float64): Float64 {
+    if (x == 0.0) {
+        return 1.0
+    }
+    let q = gammaIncUpper(0.5, x * x)
+    if (x > 0.0) {
+        q
+    } else {
+        2.0 - q
+    }
+}
+
+// ───────────────────────── 分位数反解 ─────────────────────────
+
+/**
+ * 二分反解一个单调递增的 CDF：找 `x` 使 `cdf(x) = p`
+ *
+ * 用二分不用牛顿，理由与 `tCritical` 相同：CDF 单调保证收敛，且不需要导数
+ * （t / F / 卡方的 PDF 在端点会溢出或除零，导数法反而难写稳）。
+ *
+ * 上界从 `hi0` 起倍增，下界从 `lo0` 起减半 —— 这样不同尺度的分布（卡方 df=1 与 df=1000）
+ * 都能自己找到合适的区间，不用为每个分布手调。
+ */
+func bisectQuantile(p: Float64, cdf: (Float64) -> Float64, lo0: Float64, hi0: Float64): Float64 {
+    var lo = lo0
+    var hi = hi0
+    var guard: Int64 = 0
+    while (cdf(hi) < p && guard < 200) {
+        hi = hi * 2.0 + 1.0
+        guard++
+    }
+    guard = 0
+    while (cdf(lo) > p && guard < 200) {
+        lo = lo * 2.0 - 1.0
+        guard++
+    }
+    var iter: Int64 = 0
+    while (iter < 300) {
+        let mid = (lo + hi) / 2.0
+        if (cdf(mid) < p) {
+            lo = mid
+        } else {
+            hi = mid
+        }
+        if (hi - lo < 1.0e-15 * (1.0 + abs(mid))) {
+            break
+        }
+        iter++
+    }
+    (lo + hi) / 2.0
+}
+
+/** 整数版二分：找最小的 `k` 使 `cdf(k) ≥ p`（离散分布的分位数按定义取下侧） */
+func bisectQuantileInt(p: Float64, cdf: (Int64) -> Float64, lo0: Int64, hi0: Int64): Int64 {
+    var lo = lo0
+    var hi = hi0
+    var guard: Int64 = 0
+    while (cdf(hi) < p && guard < 200) {
+        hi = hi * 2 + 1
+        guard++
+    }
+    // 不变式：cdf(lo) < p <= cdf(hi)
+    while (lo < hi) {
+        let mid = lo + (hi - lo) / 2
+        if (cdf(mid) < p) {
+            lo = mid + 1
+        } else {
+            hi = mid
+        }
+    }
+    lo
+}

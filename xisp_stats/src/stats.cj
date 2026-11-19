@@ -35,7 +35,14 @@ let STATS_SYMBOLS: Array<String> = [
     "cangjie::histogram", "cangjie::min", "cangjie::max",
     "cangjie::group-by", "cangjie::group-agg",
     "cangjie::t-test1", "cangjie::t-test2", "cangjie::ci",
-    "cangjie::five-num", "cangjie::corr-matrix"]
+    "cangjie::five-num", "cangjie::corr-matrix",
+    // 分布函数族（18 个）由 dist_ops.cj 注册，声明并在这里保持「清单 = 实现」
+    "cangjie::norm-pdf", "cangjie::norm-cdf", "cangjie::norm-quantile",
+    "cangjie::t-pdf", "cangjie::t-cdf", "cangjie::t-quantile",
+    "cangjie::chisq-pdf", "cangjie::chisq-cdf", "cangjie::chisq-quantile",
+    "cangjie::f-pdf", "cangjie::f-cdf", "cangjie::f-quantile",
+    "cangjie::pois-pmf", "cangjie::pois-cdf", "cangjie::pois-quantile",
+    "cangjie::binom-pmf", "cangjie::binom-cdf", "cangjie::binom-quantile"]
 
 public func statsDomain(): LispCapability {
     SimpleCapability(
@@ -643,4 +650,8 @@ func registerStats(ctx: CapabilityContext): Unit {
             LispValue.HashMap(result)
         })
     }))
+
+    // 分布函数族（18 个）：数学在 distributions.cj，接口与参数校验在 dist_ops.cj。
+    // 单开文件是因为它们吃标量、吐标量，与上面这些「吃数组算一个数」的不是同一类工作。
+    registerDistributions(ctx)
 }

@@ -81,7 +81,7 @@ Welch 不假设两组方差相等。这不只是「更保险」：
 
 ## t 分布是自带的
 
-仓颉的 `std.math` 没有 `lgamma` / `tgamma`，所以整套从零实现：
+仓颉的 `std.math` 没有 `lgamma` / `tgamma` / `erf`，所以整套从零实现：
 `log Γ(x)` 用 Lanczos 近似、不完全 Beta 用连分式 + Lentz 算法、分位数用二分反解。
 
 **验证方式**：拿教科书 t 分位数表逐个对。
@@ -95,6 +95,76 @@ Welch 不假设两组方差相等。这不只是「更保险」：
 
 这一步必须先做：如果 `tCritical` 系统性偏小，所有 p 值都会偏小，于是**什么都「显著」**。
 这种错误最难发现，因为结果看起来「有发现」。
+
+## 分布函数
+
+上面那套数值基础现在**全部暴露成公开符号**了。六个家族，每个三个函数：
+
+| 家族 | 密度 | 累积 | 分位数 |
+|---|---|---|---|
+| 正态 `N(μ,σ²)` | `cangjie::norm-pdf` | `cangjie::norm-cdf` | `cangjie::norm-quantile` |
+| Student t | `cangjie::t-pdf` | `cangjie::t-cdf` | `cangjie::t-quantile` |
+| 卡方 | `cangjie::chisq-pdf` | `cangjie::chisq-cdf` | `cangjie::chisq-quantile` |
+| F | `cangjie::f-pdf` | `cangjie::f-cdf` | `cangjie::f-quantile` |
+| 泊松 | `cangjie::pois-pmf` | `cangjie::pois-cdf` | `cangjie::pois-quantile` |
+| 二项 | `cangjie::binom-pmf` | `cangjie::binom-cdf` | `cangjie::binom-quantile` |
+
+```lisp
+(cangjie::norm-cdf 1.96 0 1)          ; → 0.975002
+(cangjie::norm-quantile 0.975 0 1)    ; → 1.959964
+(cangjie::t-cdf 2.0 5)                ; → 0.949030
+(cangjie::chisq-quantile 0.95 1)      ; → 3.841459
+(cangjie::f-quantile 0.95 3 20)       ; → 3.098391
+(cangjie::pois-pmf 2 2.5)             ; → 0.256516
+(cangjie::binom-cdf 5 10 0.3)         ; → 0.952651
+```
+
+### 为什么这组函数重要
+
+统计推断的出口永远是 p 值，而 p 值永远是「某个统计量落在某个分布尾部的概率」。
+只有 `t-test1` / `t-test2` 的时候，**除了这两个检验，其余一律算不出 p 值** ——
+想算个卡方统计量对应的 p、想找一个 95% 分位点、想自己搭一个检验，都没有入口。
+
+现在有了。比如自己算一个卡方统计量：
+
+```lisp
+;; 观察频数 vs 期望频数，df = 类别数 − 1
+(define stat (sum (map (lambda (p) (/ (* (- (car p) (cadr p)) (- (car p) (cadr p)))
+                                     (cadr p)))
+                     pairs)))
+(- 1 (cangjie::chisq-cdf stat 2))     ; → p 值
+```
+
+### 命名：为什么不是 `pnorm` / `qnorm`
+
+R 用 `d/p/q/r` 四个前缀分别表示密度、累积、分位数、随机数 —— 简洁，但要先记住这四个字母。
+本仓已经有 `std` 对 `std-pop` 的先例（用描述性后缀区分语义），所以这里也走同一条路：
+`-pdf` / `-pmf` / `-cdf` / `-quantile`。
+
+**分布名放在前面**（`norm-` `t-` `chisq-` `f-` `pois-` `binom-`），排序时同族挨在一起。
+
+**连续用 `-pdf`，离散用 `-pmf`** —— 概率密度与概率质量是不同量纲的东西：
+连续分布的密度值可以大于 1，离散的质量不能。
+
+### 离散分位数返回 `Int`
+
+`pois-quantile` / `binom-quantile` 返回整数，不是浮点。按定义取**下侧**：
+最小的 `k` 使 `CDF(k) ≥ p`。返回值拿去当数组下标不会出错。
+
+### 参数错会报错，不会给你一个 `nan`
+
+```lisp
+(cangjie::norm-cdf 1 0 0)      ; Error: sigma 必须 > 0，得到 0
+(cangjie::chisq-cdf -1 4)      ; Error: 参数超出分布的定义域
+```
+
+数学层对越界参数返回 `NaN`（数值代码的惯例），但 Lisp 层拦下来转成明确错误 ——
+否则 `nan` 会一路飘到最终结果，你只看到「算出来是 NaN」，不知道是哪个参数错了。
+
+### 还没有随机数
+
+`rnorm` / `rt` 这类抽样需要**状态**（种子），而本仓所有域都是纯函数、无副作用。
+种子放哪、可复现性怎么保证，是架构决策不是实现难度问题，要单独定。
 
 ## 下一步
 

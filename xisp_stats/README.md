@@ -1,6 +1,6 @@
 # xisp_stats
 
-星枢科学计算统计：描述统计、分位数、相关与直方图。
+星枢科学计算统计：描述统计、分位数、相关、直方图、假设检验、分布函数。
 
 ```lisp
 (define d (cangjie::csv-read "sales.csv"))
@@ -8,6 +8,7 @@
 (cangjie::std (hashmap-get d "amount"))      ; 样本标准差
 (cangjie::median (hashmap-get d "region"))   ; 中位数
 (cangjie::corr (hashmap-get d "amount") (hashmap-get d "qty"))
+(cangjie::norm-cdf 1.96 0 1)                 ; 0.9750 —— 分布函数
 ```
 
 ## 符号
@@ -32,6 +33,12 @@
 | `cangjie::ci` | 均值置信区间 → `{lo, hi, mean, se, df, tcrit}` |
 | `cangjie::five-num` | 箱线图数据（五数概括 + 离群点） |
 | `cangjie::corr-matrix` | 相关矩阵（热力图数据） |
+| `cangjie::norm-pdf` / `norm-cdf` / `norm-quantile` | 正态 `N(μ, σ²)` |
+| `cangjie::t-pdf` / `t-cdf` / `t-quantile` | Student t |
+| `cangjie::chisq-pdf` / `chisq-cdf` / `chisq-quantile` | 卡方 |
+| `cangjie::f-pdf` / `f-cdf` / `f-quantile` | F 分布 |
+| `cangjie::pois-pmf` / `pois-cdf` / `pois-quantile` | 泊松 |
+| `cangjie::binom-pmf` / `binom-cdf` / `binom-quantile` | 二项 |
 
 同时接受 ndarray 与普通列表：`(cangjie::mean arr)` 与 `(cangjie::mean [1 2 3])` 都能用。
 
@@ -82,6 +89,91 @@
 Gamma 函数用 Lanczos 近似、不完全 Beta 用连分式 + Lentz 算法、分位数用二分反解。
 验证方式是拿**教科书 t 分位数表**逐个对（df=1 → 12.706、df=30 → 2.042），
 容差 1e-3 全过。
+
+## 分布函数
+
+```lisp
+(cangjie::norm-cdf 1.96 0 1)          ; → 0.975002
+(cangjie::norm-quantile 0.975 0 1)    ; → 1.959964
+(cangjie::t-cdf 2.0 5)                ; → 0.949030
+(cangjie::chisq-quantile 0.95 1)      ; → 3.841459
+(cangjie::f-quantile 0.95 3 20)       ; → 3.098391
+(cangjie::pois-pmf 2 2.5)             ; → 0.256516
+(cangjie::binom-cdf 5 10 0.3)         ; → 0.952651
+```
+
+**这组函数解决的是「除了 `t-test1` / `t-test2`，其余检验都算不出 p 值」这个问题。**
+
+统计推断的出口永远是 p 值，而 p 值永远是「某个统计量落在某个分布尾部的概率」。之前
+`dist.cj` 里虽然已经有 `tCdf` / `betaInc` 这些基础设施，但一个都没暴露到 Lisp 层 ——
+能力被封在三个打包好的检验函数里。想算个卡方统计量对应的 p、想找一个 95% 分位点、
+想自己搭一个检验，都没有入口。现在它们有了。
+
+### 参数顺序
+
+| 家族 | 形式 |
+|---|---|
+| `norm-*` | `(x mu sigma)` / `(p mu sigma)` |
+| `t-*` | `(t df)` / `(p df)` |
+| `chisq-*` | `(x df)` / `(p df)` |
+| `f-*` | `(x d1 d2)` / `(p d1 d2)` |
+| `pois-*` | `(k lambda)` / `(q lambda)` |
+| `binom-*` | `(k n p)` / `(q n p)` |
+
+**分位数函数（`*-quantile`）的第一个参数是概率**，其余与同族 `pdf` / `cdf` 一致。
+
+### 三条命名约定
+
+**① 分布名在前。** `norm-` / `t-` / `chisq-` / `f-` / `pois-` / `binom-` 前缀让排序时同族
+挨在一起，文档按前缀分组也不会散。
+
+**② 连续用 `-pdf`，离散用 `-pmf`。** R 的 `d` 前缀不分这个，但「概率密度」与「概率质量」
+是不同量纲的东西：连续分布的 `-pdf` 值可以大于 1，离散的 `-pmf` 不能。
+
+**③ 不抄 R 的 `d/p/q/r` 缩写。** 本仓已有 `std` 对 `std-pop` 的先例 —— 用描述性后缀区分
+语义，不靠单字母记忆。R 用户看名字能反推回 `pnorm` / `qnorm`，反过来不成立。
+
+### 返回类型
+
+`-pmf` / `-pdf` / `-cdf` 返回 `Float`，**`pois-quantile` / `binom-quantile` 返回 `Int`**。
+离散分布的分位数按定义取**下侧**：最小的 `k` 使 `CDF(k) ≥ p`。返回值拿去当数组下标不会出错。
+
+### 非法参数报 `TypeError`，不会静默返回 `nan`
+
+```lisp
+(cangjie::norm-cdf 1 0 0)      ; Error: cangjie::norm-cdf 的 sigma 必须 > 0，得到 0
+(cangjie::chisq-cdf -1 4)      ; Error: cangjie::chisq-cdf：参数超出分布的定义域
+```
+
+数学层对越界参数返回 `NaN`，这是数值代码的惯例（NaN 可以继续传播，由调用方决定）；
+但 Lisp 层拦下来转成明确错误 —— 否则 `nan` 会一路飘到最终结果，用户只看到
+「算出来是 NaN」，根本不知道是哪个参数错了。
+
+### 数值实现
+
+全部从零实现，没有外部依赖：
+
+| 需要的 | 怎么来的 |
+|---|---|
+| `log Γ(x)` | Lanczos 近似（g=7，9 项系数），负数走反射公式 |
+| 不完全 Beta `I_x(a,b)` | 连分式 + Lentz 算法 |
+| 不完全 Gamma `P(a,x)` / `Q(a,x)` | 级数展开（`x < a+1`）+ 连分式（否则） |
+| `erf` / `erfc` | **没有专门实现** —— `erf(x) = P(1/2, x²)`，直接用上一层 |
+| 分位数 | 二分反解 CDF（不用牛顿：t / F / 卡方的 PDF 在端点会溢出，导数法难写稳） |
+
+仓颉的 `std.math` **没有** `lgamma` / `tgamma` / `erf`（探测过，`undeclared identifier`）。
+正态 / 卡方 / 泊松三个族的 CDF 都归到同一个不完全 Gamma 上，所以补一种特殊函数就解锁一整片。
+
+正确性验证用**三套互相独立的证据**（详见 `src/distributions_test.cj` 的文件注释）：
+外部锚点（Python 标准库 `math.erfc`、逐项精确求和、`t` 的 df=1/2 闭式解）、
+跨分布恒等式（`χ²₁ = Z²`、`χ²_{2k}` 与泊松、`F(1,v) = t(v)²`）、内部自洽（CDF 数值导数 = PDF、
+分位数互逆）。
+
+### 为什么没有随机数
+
+`rnorm` / `rt` 这类抽样需要**状态**（种子），而本仓所有域都声明为纯函数、无副作用。
+种子放哪（域内状态 / 显式传参 / 线程局部）、可复现性怎么保证、`escapable` 怎么标 ——
+这是架构决策，不是实现难度问题，要单独定。
 
 ## 图表数据
 
