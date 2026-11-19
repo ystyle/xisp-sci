@@ -1,0 +1,18 @@
+[package]
+  cjc-version = "1.0.0"
+  name = "xisp_signal"
+  organization = "ystyle"
+  description = "星枢科学计算信号处理：FFT、卷积、IIR 滤波与窗函数"
+  version = "0.2.0"
+  output-type = "static"
+  compile-option = "-O2 -Woff unused"
+  override-compile-option = ""
+  link-option = ""
+  include = ["/src"]
+  license = ["MIT"]
+  authors = ["ystyle"]
+  repository = "https://gitcode.com/ystyle/xisp-sci"
+
+[dependencies]
+  "ystyle::xisp" = { path = "../../xisp/core" }
+  "ystyle::xisp_array" = "0.2.0"

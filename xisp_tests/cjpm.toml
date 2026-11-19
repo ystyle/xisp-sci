@@ -19,6 +19,8 @@
   "ystyle::xisp_io" = "0.2.0"
   "ystyle::xisp_stats" = "0.2.0"
   "ystyle::xisp_linalg" = "0.2.0"
+  "ystyle::xisp_signal" = "0.2.0"
+  "ystyle::xisp_num" = "0.2.0"
   # 三后端（AST / 字节码 / JIT）差分：数组全部走 NativeFunc，理论上一致，
   # 但 `length` / `nth` 是 core 的通用内建，要确认它们在后端切换后仍走同一分派路径。
   "ystyle::xisp_bc" = { path = "../../xisp/xisp_bc" }

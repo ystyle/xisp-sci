@@ -9,6 +9,7 @@ import std.collection.HashMap
 import std.fs.*
 import std.convert.*
 import std.math.*
+import std.sort.*
 
 /**
  * CSV 能力域
@@ -363,7 +364,7 @@ func columnOrder(data: HashMap<String, LispValue>, given: Option<LispValue>): Ar
             for (k in data.keys()) {
                 names.add(k)
             }
-            names.sort()
+            sort(names)
             names.toArray()
     }
 }
