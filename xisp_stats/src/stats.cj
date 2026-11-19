@@ -42,7 +42,10 @@ let STATS_SYMBOLS: Array<String> = [
     "cangjie::chisq-pdf", "cangjie::chisq-cdf", "cangjie::chisq-quantile",
     "cangjie::f-pdf", "cangjie::f-cdf", "cangjie::f-quantile",
     "cangjie::pois-pmf", "cangjie::pois-cdf", "cangjie::pois-quantile",
-    "cangjie::binom-pmf", "cangjie::binom-cdf", "cangjie::binom-quantile"]
+    "cangjie::binom-pmf", "cangjie::binom-cdf", "cangjie::binom-quantile",
+    // 随机数族（6 个）由 rng.cj 注册，同样保持「清单 = 实现」
+    "cangjie::rand-uniform", "cangjie::rand-normal", "cangjie::rand-int",
+    "cangjie::rand-permutation", "cangjie::rand-sample", "cangjie::rand-resample"]
 
 public func statsDomain(): LispCapability {
     SimpleCapability(
@@ -654,4 +657,7 @@ func registerStats(ctx: CapabilityContext): Unit {
     // 分布函数族（18 个）：数学在 distributions.cj，接口与参数校验在 dist_ops.cj。
     // 单开文件是因为它们吃标量、吐标量，与上面这些「吃数组算一个数」的不是同一类工作。
     registerDistributions(ctx)
+
+    // 随机数族（6 个）：算法在 rng.cj。种子是参数而不是域内状态 —— 见 rng.cj 文件头。
+    registerRng(ctx)
 }

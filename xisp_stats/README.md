@@ -1,6 +1,6 @@
 # xisp_stats
 
-星枢科学计算统计：描述统计、分位数、相关、直方图、假设检验、分布函数。
+星枢科学计算统计：描述统计、分位数、相关、直方图、假设检验、分布函数、随机数。
 
 ```lisp
 (define d (cangjie::csv-read "sales.csv"))
@@ -9,6 +9,7 @@
 (cangjie::median (hashmap-get d "region"))   ; 中位数
 (cangjie::corr (hashmap-get d "amount") (hashmap-get d "qty"))
 (cangjie::norm-cdf 1.96 0 1)                 ; 0.9750 —— 分布函数
+(cangjie::rand-normal 5 0 1 42)              ; 5 个 N(0,1) 样本（种子 42）
 ```
 
 ## 符号
@@ -39,6 +40,12 @@
 | `cangjie::f-pdf` / `f-cdf` / `f-quantile` | F 分布 |
 | `cangjie::pois-pmf` / `pois-cdf` / `pois-quantile` | 泊松 |
 | `cangjie::binom-pmf` / `binom-cdf` / `binom-quantile` | 二项 |
+| `cangjie::rand-uniform` | `n` 个 `[0,1)` 均匀样本（种子作为参数） |
+| `cangjie::rand-normal` | `n` 个 `N(μ, σ²)` 样本 |
+| `cangjie::rand-int` | `n` 个 `[lo, hi)` 均匀整数 |
+| `cangjie::rand-permutation` | `0..n-1` 的随机排列 |
+| `cangjie::rand-sample` | `0..n-1` 中**无放回**抽 k 个 |
+| `cangjie::rand-resample` | `0..n-1` 中**有放回**抽 n 个（bootstrap） |
 
 同时接受 ndarray 与普通列表：`(cangjie::mean arr)` 与 `(cangjie::mean [1 2 3])` 都能用。
 
@@ -169,11 +176,111 @@ Gamma 函数用 Lanczos 近似、不完全 Beta 用连分式 + Lentz 算法、�
 跨分布恒等式（`χ²₁ = Z²`、`χ²_{2k}` 与泊松、`F(1,v) = t(v)²`）、内部自洽（CDF 数值导数 = PDF、
 分位数互逆）。
 
-### 为什么没有随机数
+### 随机数去哪了
 
-`rnorm` / `rt` 这类抽样需要**状态**（种子），而本仓所有域都声明为纯函数、无副作用。
-种子放哪（域内状态 / 显式传参 / 线程局部）、可复现性怎么保证、`escapable` 怎么标 ——
-这是架构决策，不是实现难度问题，要单独定。
+分布函数这一族只管「参数 → 概率」，不含抽样。抽样需要**种子**，而种子放在哪是个
+架构决策（域内状态会破坏纯函数不变量），所以它单独成节 —— 见下面的「随机数」。
+
+## 随机数
+
+```lisp
+(cangjie::rand-uniform 5 42)          ; → #<ndarray float64 [...]>，5 个 [0,1) 样本
+(cangjie::rand-normal 5 0 1 42)       ; → 5 个 N(0,1) 样本，种子 42
+(cangjie::rand-int 5 1 7 42)          ; → 5 个 [1,7) 整数
+(cangjie::rand-permutation 5 42)      ; → 0..4 的随机排列
+(cangjie::rand-sample 5 2 42)         ; → 0..4 中无放回抽 2 个
+(cangjie::rand-resample 5 42)         ; → 0..4 中有放回抽 5 个（bootstrap）
+```
+
+| 符号 | 形式 | 返回 |
+|---|---|---|
+| `cangjie::rand-uniform` | `(n seed)` | ndarray float64，`[0,1)` |
+| `cangjie::rand-normal` | `(n mu sigma seed)` | ndarray float64，`N(mu, sigma²)` |
+| `cangjie::rand-int` | `(n lo hi seed)` | ndarray int64，`[lo, hi)` |
+| `cangjie::rand-permutation` | `(n seed)` | ndarray int64，`0..n-1` 的排列 |
+| `cangjie::rand-sample` | `(n k seed)` | ndarray int64，`0..n-1` 中无放回抽 k 个 |
+| `cangjie::rand-resample` | `(n seed)` | ndarray int64，`0..n-1` 中有放回抽 n 个 |
+
+### 种子是参数，不是隐藏状态
+
+**没有 `(rand-seed! 42)` 这种设置种子的函数，种子是每次调用的最后一个参数。**
+理由是本仓所有能力域都声明为纯函数：同一个表达式求值两次必须给同一个值。随机数一旦
+在域里存状态，这条不变量就破了 —— 求值顺序、并发求值、脚本重放都会改变结果，
+还得给它单独标 `escapable`、过沙箱审计。
+
+把种子传进来，**同一个种子永远给同一串数**，可复现性由类型（参数）保证而不是由约定保证。
+代价是每次调用多写一个数；收益是随机数跟 `mean` / `norm-cdf` 是同级的纯函数。
+
+种子是 `Int64`，**负数合法**（按二补码转 `UInt64`：种子 `-1` 就是 `0xFFFFFFFFFFFFFFFF`）。
+`seed` 只决定序列起点，与样本个数无关：`(rand-uniform 5 42)` 与 `(rand-uniform 100 42)`
+的前 5 个数一样。
+
+### 算法：自己实现 xoshiro256\*\*
+
+不用运行库的随机数（仓颉 `std.random` 即便有，本仓也保持零依赖），原因三条：
+**可复现**（算法钉死在这里，运行库换一版实现昨天的分析就复现不了）、**零依赖**、
+**质量**（线性同余的低位周期短、连续样本相关，不能用于统计模拟）。
+
+`xoshiro256**`（Blackman & Vigna, 2018）：256 位状态、周期 2^256−1、通过作者的小池测试套件，
+实现只有十几行 —— 十几行的好处是**可以逐位对照参考实现验证**。
+
+种子用 **SplitMix64** 扩展成 4 个状态字（直接拿种子的字节填状态会让相近的种子给出
+高度相关的序列）。三种均匀化各管一件事：
+
+| 需要的 | 做法 | 为什么不是别的 |
+|---|---|---|
+| `[0,1)` 浮点 | 取**高 53 位** × 2^−53 | `x / 2^64` 把靠 0 的一端压重（2^64 不是 2^53 的倍数） |
+| `[lo,hi)` 整数 | **拒绝采样** | `x % n` 有模偏差，n 大时一半取值概率翻倍 |
+| 正态 | **逆变换** `μ + σ·Φ⁻¹(u)` | 一行代码，复用 `norm-quantile` 的 `normQuantile`，不用 Box-Muller |
+
+正态用逆变换而不是 Box-Muller：只需要一个均匀数，随机数消耗可预测，并且把正确性归约到
+「`normQuantile` 对 + 均匀数对」这两件已经各自测过的事上。
+
+### 排列与抽样是同一个操作
+
+`(rand-sample n k seed)` 返回的就是 `(rand-permutation n seed)` 的**前 k 个**：
+Fisher-Yates 抽 k 个只需洗前 k 个位置。`k = n` 时前者退化成后者。
+
+```lisp
+;; 无放回抽 3 个下标，再从数据里取
+(define idx (cangjie::rand-sample n 3 42))
+
+;; bootstrap：重采样 n 个下标，再算统计量
+(define boot (cangjie::rand-resample n 42))
+(cangjie::mean (map (lambda (i) (nth col i)) (cangjie::array boot)))
+```
+
+**`rand-resample` 抽出来的下标会重复**（有放回），这正是 bootstrap 需要的；`rand-sample`
+抽出来的**一定不重复**。
+
+### 参数校验
+
+```lisp
+(cangjie::rand-uniform -1 42)        ; Error: rand-uniform 的 n 必须 ≥ 0，得到 -1
+(cangjie::rand-normal 10 0 0 42)     ; Error: rand-normal 的 sigma 必须 > 0，得到 0
+(cangjie::rand-int 10 5 5 42)        ; Error: rand-int 需要 lo < hi（区间是左闭右开）
+(cangjie::rand-sample 5 6 42)        ; Error: rand-sample 的 k 不能大于 n
+```
+
+`n = 0` / `k = 0` **不报错**，返回空 ndarray —— 「还没抽」不是参数错误。
+
+### 已知限制
+
+- **`rand-sample n k` 是 O(n) 内存**：Fisher-Yates 要先铺开 n 个下标。抽 10 个但 n 有 10^8
+  时会分配 800 MB。要抽少量而 n 极大时，请先缩小候选集（或先在 Lisp 层做子集）。
+- **`rand-normal` 每个样本要反解一次 CDF**（二分约 50 次 `norm-cdf`）：实测约 7.5 µs/个，
+  10 万个样本 0.75 秒。批量蒙特卡洛时这是主要开销。要更快得上 Ziggurat / 接受-拒绝，
+  那要独立验证一套新的尾部分布 —— 暂不做，宁可慢也不留没验证过的数值路径。
+- **只有均匀 / 正态两个分布**。`t` / 卡方 / 泊松的抽样没有提供 —— 它们要么需要
+  「逆变换 + 整数反解」，要么需要接受-拒绝的参数调优，属于下一步的事，不做半成品。
+- **没有 `(rand-seed!)` 形态的全局种子**：见上文，这是刻意的。
+
+### 正确性怎么验的
+
+见 [`src/rng_test.cj`](src/rng_test.cj) 的文件注释，四套独立证据：**已知序列**（上游参考实现
+与一份独立 Python 实现逐位相同，钉在测试常量里）、**结构不变量**（排列查重、抽样互异、
+bootstrap 必有重复）、**统计性质**（矩、覆盖概率、卡方拟合优度，p 值来自 `chisq-cdf`）、
+**Lisp 层接线**（符号清单、返回类型、`TypeError`）。
 
 ## 图表数据
 
