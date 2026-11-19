@@ -8,7 +8,7 @@
 |---|---|---|
 | [`xisp_array`](/api/array) | 9 | ndarray：构造、变形、广播、算术 |
 | [`xisp_io`](/api/io) | 8 | CSV 读写（含流式） |
-| [`xisp_stats`](/api/stats) | 17 | 描述统计、分组、假设检验、图表数据 |
+| [`xisp_stats`](/api/stats) | 18 | 描述统计、分组、假设检验、图表数据 |
 | [`xisp_linalg`](/api/linalg) | 9 | 矩阵乘法、分解、解方程、最小二乘 |
 | [`xisp_signal`](/api/signal) | 6 | FFT、卷积、滤波、窗函数 |
 | [`xisp_num`](/api/num) | 7 | 插值、拟合、积分、优化、ODE |

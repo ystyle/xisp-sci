@@ -1,150 +1,154 @@
-# 星枢科学计算族（xisp-sci）
+# 星枢科学计算 · xisp-sci
 
-[星枢（xisp）](https://gitcode.com/ystyle/xisp) 的科学计算扩展——NDArray 与建立在它之上的
-线性代数 / 统计 / 信号处理。
+**在 Lisp 里做数据分析** —— 建在 [星枢 Xisp](https://gitcode.com/ystyle/xisp) 之上的科学计算套件。
 
-**当前状态：数组可算**（阶段 1 + 2 完成）。`xisp_array` 提供 9 个符号：构造
-（`array` / `zeros` / `ones` / `arange`）、形状（`shape` / `reshape` / `transpose`）、
-视图（`slice`）与谓词（`ndarray?`）。
+读 CSV、算统计、拟合回归、解方程、做 FFT —— 全部在一个嵌入式脚本层里完成，纯仓颉实现，零外部依赖。
 
-**算术、归约与数学函数不额外注册符号** —— 它们复用 core 的同名内建，靠能力接口分派：
+```
+Cangjie 1.0+  ·  MIT  ·  0.2.0（开发中，未发布）
+```
+
+---
+
+## 特性
+
+**📊 从 CSV 到结论，一条链路**
+自动推断列类型、识别 10 种缺失标记、跳过 NaN 算统计。不用在三种工具之间倒数据。
+
+**🧮 ndarray 是一等公民**
+dtype / shape / strides / 广播 / 视图。`(+ a 1)` 在 100 万元素上瞬间完成 —— 广播不复制数据。
+
+**📈 统计不止均值**
+分位数、相关系数、分组聚合、t 检验、置信区间、箱线图五数概括。以及「样本标准差还是总体标准差」这类会被搞错的地方。
+
+**🎯 算对了才算完**
+统计量与 pandas 逐位比对；回归系数与 Python 的正规方程对照（**不同算法给同一个答案才算证据**）；t 分布拿教科书分位数表钉住。
+
+**🔬 六族解耦**
+`array` / `io` / `stats` / `linalg` / `signal` / `num` 严格单向依赖。只想用统计，就不必把 FFT 和线代拖进来。
+
+**⚡ 性能有数**
+`matmul` 1000×1000 约 1 秒 / 2 GFLOPS。`-O2` 开关差 **8~68 倍**（实测，不是估计）。
+
+---
+
+## 三十秒看一眼
 
 ```lisp
-(+ (cangjie::array [1 2 3]) 10)              ; #<ndarray int64 [11 12 13]>
-(+ (cangjie::array [[1] [2]]) (cangjie::array [[3 4]]))
-                                              ; #<ndarray int64 [[4 5] [5 6]]>  广播
-(sum (cangjie::array [1 2 3 4]))              ; 10
-(sin (cangjie::array [0.0]))                  ; #<ndarray float64 [0.0]>
-(sqrt (cangjie::arange 0 4))                  ; #<ndarray float64 [0.0 1.0 1.4142135623730951 1.7320508075688772]>
+;; 读真实数据
+(define d (cangjie::csv-read "iris.csv"))
+
+;; 描述统计
+(cangjie::mean (hashmap-get d "petal_length"))     ; 3.7587
+(cangjie::std  (hashmap-get d "petal_length"))     ; 1.7644（样本标准差）
+
+;; 分组 —— 这里才是重点
+(cangjie::group-agg (hashmap-get d "species")
+                    (hashmap-get d "petal_length")
+                    cangjie::mean)
+;; (("setosa" 1.464) ("versicolor" 4.260) ("virginica" 5.552))
 ```
 
-## 为什么是独立的仓库 / workspace
+整体均值 3.76 描述了一个**不存在的平均鸢尾花**。真实情况是 1.5 / 4.3 / 5.6 三群，中间没有过渡。
 
-语言本体（[xisp](https://gitcode.com/ystyle/xisp)）与科学计算族的**发布节奏、外部依赖与目标用户都不同**：
+```lisp
+;; 回归：两次期中成绩能预测期末吗
+(cangjie::lstsq X y)        ; → [-1.83 0.153 0.987]
+;; R² = 0.82，RMSE = 1.93 分
 
-| | 语言本体 `xisp` | 科学计算族 `xisp-sci` |
-|---|---|---|
-| 外部依赖 | 核心零依赖 | LAPACK / BLAS / FFTW 等 C 库 |
-| 发布触发 | 解释器或任一能力域有变 | 数值算法修正 |
-| 用户 | 嵌入脚本的宿主 | 做数值计算的人 |
-
-合在一个 workspace 里的代价是 LAPACK 编不过就整族发不出去，语言本体被高风险环节连累。
-拆成两个独立仓的代价是版本要对齐（见下节）。设计论证见 xisp 仓的
-[`docs/plans/2026-10-11-sci-family-design.md` §4](https://gitcode.com/ystyle/xisp/blob/master/docs/plans/2026-10-11-sci-family-design.md)。
-
-## 族的构成（严格单向依赖）
-
-```
-        xisp（core：LispValue / External 协议 / 域装配 / 中断接缝）
-              ↑
-        xisp_array            ← 唯一地基：dtype / shape / strides / 广播 / 视图
-        ↑    ↑    ↑    ↑    ↑
-   xisp_io  xisp_linalg  xisp_stats  xisp_signal  xisp_num
-        ↑    ↑    ↑    ↑    ↑
-                xisp_sci           ← 门面：聚合 + 高层 API，不含重实现
+;; 男女差异显著吗
+(cangjie::t-test2 female male)
+;; → p = 0.0396 —— 显著，但只差 0.95 分，比模型误差还小
 ```
 
-规则：
+---
 
-1. `array` 是唯一地基，**只有它可以被同族其它模块依赖**；
-2. `io` / `linalg` / `stats` / `signal` / `num` **互相不得依赖**（各自只依赖 `array` + core）；
-3. `sci` 只做聚合 / re-export 与跨域工作流，不重复实现；
-4. 全族**不得反向依赖** core 以外的语言本体设施（`repl` / `cli` / `bc`）。
-
-`xisp_num`（插值 / 拟合 / 优化 / ODE / 数值积分）不在最初的分族方案里，是补的一个缺口 ——
-这些数值方法原先没有归属模块。
-
-**当前只有 `xisp_array` 一个成员**。其余成员在 `array` 的 API 面定稿后按需加入 —— 它们全部
-依赖 `array`，地基没定型时连签名都写不出来，提前占位只是给 lockstep 版本、发布清单和
-`check-members.sh` 增加纯维护负担。
-
-范围、边界判据、阶段路线图见 [`docs/plans/2026-11-19-scope-and-roadmap.md`](docs/plans/2026-11-19-scope-and-roadmap.md)。
-
-## 与 xisp 的版本关系
-
-**开发期用 path 依赖**，指向同工作区的 xisp 源码：
+## 用法
 
 ```toml
 [dependencies]
-  "ystyle::xisp" = { path = "../../xisp/core" }
-  "ystyle::xisp_bc" = { path = "../../xisp/xisp_bc" }   # 仅测试用
+  "ystyle::xisp_sci" = "0.3.0"     # 门面：一次装齐全族
 ```
 
-这样改 xisp 不必每次都发版 —— 否则「数组侧发现 core 缺一个能力 → 改 core → 发整产品 →
-等中心仓同步 → 回来继续」这个循环会反复发生，而发版本身就是几分钟到十几分钟的等待。
+```cangjie
+import ystyle::xisp.*
+import ystyle::xisp_sci.*
 
-**发版前必须改回精确版本号**：path 依赖不能 `cjpm bundle` / `publish`。恢复成
-`"ystyle::xisp" = "x.y.z"`、跑一遍 `cjpm ws check` 与 `full test` 再发。
-
-这条规则的边界：path 依赖只用于**本仓还没发布过**的开发阶段。一旦本仓有版本在中心仓，
-下游拿到的制品里不能有 path 依赖 —— 所以「改回版本号」不是可选项。
-
-另外，如果发现**必须改 xisp 才能实现某个数组能力**，先停一下：那多半说明 core 的
-`External` 接缝不够用，比「绕过去」重要得多。
-
-## 模块命名
-
-**模块名不能含连字符**（cjpm 要求合法标识符）。仓库叫 `xisp-sci`，模块必须叫
-`xisp_array` / `xisp_linalg` / …，包名 `ystyle::xisp_array`。
-
-## ⚠️ 必须开 `-O2`
-
-**实测：同一个 `matmul`，`-O2` 与否差 8~68 倍。**
-
-| n | `-O2` | 默认 | 倍数 |
-|---|---|---|---|
-| 200 | 11 ms | 216 ms | 19× |
-| 400 | 70 ms | 1.69 s | 24× |
-| 1000 | 0.97 s | **29.4 s** | 30× |
-
-数据来自 [`bench/report.md`](bench/report.md) §五，可复现。
-
-由此有两条要求：
-
-1. **本仓每个成员的 `cjpm.toml` 都必须写 `compile-option = "-O2 -Woff unused"`**
-   （9 个成员已逐个确认）；
-2. **宿主工程也要开 `-O2`** —— 发布出去的是**源码包**，下游在自己的工程里编译。
-   不加优化就得不到上表的性能，而且不会有任何警告提示。
-
-如果你把这套库嵌进自己的程序，请确认：
-
-```toml
-[package]
-  compile-option = "-O2"
+let interp = LispInterpreter([withSci()])
+println(interp.eval(#"(cangjie::mean (cangjie::array [1 2 3]))"#))
 ```
 
-## 构建与测试
+只想要一族时精确装配：
+
+```cangjie
+LispInterpreter([withArray(), withStats()])
+```
+
+> ⚠️ **你的工程必须开 `-O2`**
+> ```toml
+> [package]
+>   compile-option = "-O2"
+> ```
+> 实测同一份 `matmul`，加与不加差 **8~68 倍** —— 1000×1000 从 0.97 秒变成 29 秒。
+> 发布的是源码包，不加优化就得不到这个性能，**而且不会有任何警告**。
+
+---
+
+## 文档
+
+**📖 [完整文档站](https://ystyle.github.io/xisp-sci/)**
+
+| | |
+|---|---|
+| [快速开始](https://ystyle.github.io/xisp-sci/guide/01-quickstart) | 五分钟跑通第一个分析 |
+| [Iris 实战](https://ystyle.github.io/xisp-sci/cookbook/iris) | 十分钟走完真实数据 |
+| [教师工作流](https://ystyle.github.io/xisp-sci/cookbook/teacher) | 一个不懂编程的人怎么用 |
+| [API 参考](https://ystyle.github.io/xisp-sci/api/) | 六个模块 57 个符号 |
+| [设计取舍](https://ystyle.github.io/xisp-sci/reference/design) | 为什么这样设计、放弃了什么 |
+| [性能与基准](https://ystyle.github.io/xisp-sci/reference/performance) | 全部实测数字 |
+
+---
+
+## 六个模块
+
+| 模块 | 符号 | 职责 |
+|---|---|---|
+| `xisp_array` | 9 | ndarray：构造、变形、广播、算术 |
+| `xisp_io` | 8 | CSV 读写（含 64KB 流式，内存与文件大小无关） |
+| `xisp_stats` | 18 | 描述统计、分组、假设检验、图表数据 |
+| `xisp_linalg` | 9 | 矩阵乘法、LU/QR/Cholesky、解方程、最小二乘 |
+| `xisp_signal` | 6 | FFT（任意长度）、卷积、IIR 滤波、窗函数 |
+| `xisp_num` | 7 | 插值、多项式拟合、积分、优化、ODE |
+
+加上门面 `xisp_sci`，共 7 个可发布成员 + 2 个开发成员（契约测试、基准）。
+
+---
+
+## 几条设计原则
+
+**数组是外部值，不是核心类型。** 核心的 `LispValue` 是封闭枚举，加变体要动所有 `match`。所以走能力接口通道 —— 这套通道对稀疏矩阵、DataFrame 等任何类型同样开放。
+
+**两套 NaN 语义并存。** `(max x)` 是数学语义（NaN 传播），`(cangjie::max x)` 是数据分析语义（跳过缺失）。**加前缀 = 数据分析**，这是全套件的命名约定。
+
+**不做绘图。** 只产出可渲染的结构（直方图边界与计数、箱线图五数、相关矩阵），渲染交给前端。图表给谁看决定了它该长什么样，这个决定应该由调用方做。
+
+**不接 BLAS / LAPACK。** `cjpm` 没有可选依赖，接 C 库意味着每个宿主都得装 C 工具链。代价是慢 25~50 倍，对 n < 1000 的数据分析够用。
+
+---
+
+## 构建
 
 ```shell
-eval "$(cjvs env zsh)" && eval "$(cjvs stdx-env zsh)"   # 每个新 shell 都要
-cjpm build                    # 编译
-cjpm test -j 4 --no-progress  # 跑测试
-cjpm ws check                 # 版本 lockstep 闸门
-bash scripts/check-members.sh # 成员配置闸门（制品范围 / 元数据 / README）
+eval "$(cjvs env zsh)" && eval "$(cjvs stdx-env zsh)"
+cjpm build -j 8
+cjpm test -j 4 --no-progress
 ```
 
-## 发布
+基准（七项，含 -O2 A/B 与真实 Matrix Market 稀疏矩阵）：
 
-准入判据与闸门见工作区 `docs/publish-scope.md`。要点：
-
-- 一个 `[workspace]` 视为一个产品，已发布成员**共用同一版本号**（lockstep），
-  任一成员有实质变更即整产品推进一个版本；
-- `cjpm publish` 没有 `--registry`，目标仓只能来自 `~/.cjpm/cangjie-repo.toml` ——
-  一律走 `./scripts/local-publish.sh` 闸门，不要手敲 `cjpm publish`；
-- 发版前必须解包看制品 + 查元数据字段。
-
-## 待决事项
-
-全部列在 [`docs/plans/2026-11-19-scope-and-roadmap.md` §6](docs/plans/2026-11-19-scope-and-roadmap.md)：
-默认布局（行优先 / 列优先）、符号命名策略、`linalg` 的 C 后端形态、数组是否要 core 专用变体、
-`io` 与 `xisp_json` 的关系。
-
-已经定下来的两条前置：
-
-- **标量数学进 core，不进本仓** —— `(sin 1.0)` 是语言能力，`(sin arr)` 是数组能力，
-  同名靠能力接口分派，不搞两套名字；
-- **第一版 dtype 只做 `Int64` / `Float64` / `Bool`** —— core 没有复数标量类型，
-  加它是 `LispValue` 加变体（~24 处 match），等真有需求再议。
+```shell
+cd bench && ./target/release/bin/ystyle::bench    # 报告写到 bench/report.md
+```
 
 ## 许可
 

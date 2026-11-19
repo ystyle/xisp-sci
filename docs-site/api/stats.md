@@ -1,6 +1,6 @@
 # 统计 stats
 
-`withStats()` 装配。17 个符号。
+`withStats()` 装配。18 个符号。
 
 ## 描述统计
 

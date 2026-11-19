@@ -6,6 +6,11 @@
 
 1. **依赖 xisp 只能走中心仓版本号**（`"ystyle::xisp" = "x.y.z"`），不用 `{ path = ... }`。
    path 依赖发布不了。要 xisp 加新 API，得先发那个版本。
+
+   > **当前状态（2026-11-19）**：六个成员临时走 `{ path = "../../xisp/core" }`，
+   > 这是用户明确授权的开发期例外 —— 数组模块还在迭代，等它稳定再统一改回版本号发版。
+   > **发版前必须逐个改回**，`cjpm bundle` 会把 path 原样写进制品，下游拿到就构建失败。
+   > 检查：`grep -rn 'path = ' */cjpm.toml`。
 2. **族内严格单向依赖**：只有 `xisp_array` 可以被同族其它模块依赖；`io` / `linalg` /
    `stats` / `signal` / `num` 互不依赖；`xisp_sci` 只做聚合。不许反向依赖 `repl` / `cli` / `xisp_bc`。
 3. **模块名不能含连字符**：仓库叫 `xisp-sci`，模块必须是 `xisp_array` 这种。
