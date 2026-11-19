@@ -390,6 +390,9 @@ main() {
     log("\n## 十一、纯仓颉优化上限（matmul 实验）")
     matmulExperiment()
 
+    log("\n## 十二、foreign 调系统 BLAS（实验）")
+    blasExperiment()
+
     log("\n## 六、编译优化开关的影响（A/B 实测）")
     log("")
     log("同一个 `matmul`，只把 `xisp_linalg` 的 `compile-option` 从 `\"-O2 -Woff unused\"`")
