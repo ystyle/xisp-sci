@@ -16,7 +16,10 @@ import std.collection.ArrayList
 let LINALG_SYMBOLS: Array<String> = [
     "cangjie::matmul", "cangjie::trace", "cangjie::det", "cangjie::solve",
     "cangjie::inv", "cangjie::cholesky", "cangjie::lu", "cangjie::qr",
-    "cangjie::lstsq"]
+    "cangjie::lstsq",
+    // 分解与派生量（svd.cj / derived.cj）
+    "cangjie::svd", "cangjie::eigen", "cangjie::rank", "cangjie::cond",
+    "cangjie::ginv", "cangjie::pca"]
 
 public func linalgDomain(): LispCapability {
     SimpleCapability(
@@ -106,6 +109,54 @@ func registerLinalg(env: Environment): Unit {
         guardedLinalg({ =>
             arity(args, 2, "cangjie::lstsq")
             lstsqLisp(args[0], args[1])
+        })
+    }))
+
+    // ───────── 奇异值分解与对称特征分解（svd.cj）─────────
+
+    // (cangjie::svd A) —— A = U·diag(S)·Vᵀ，返回 {u, s, vt}
+    env.define("cangjie::svd", NativeFunc({ args =>
+        guardedLinalg({ =>
+            arity(args, 1, "cangjie::svd")
+            svdLispOf(args[0])
+        })
+    }))
+
+    // (cangjie::eigen A) —— 只接受对称矩阵，返回 {values, vectors}
+    env.define("cangjie::eigen", NativeFunc({ args =>
+        guardedLinalg({ =>
+            arity(args, 1, "cangjie::eigen")
+            eigenLispOf(args[0])
+        })
+    }))
+
+    // ───────── 派生量（derived.cj）─────────
+
+    env.define("cangjie::rank", NativeFunc({ args =>
+        guardedLinalg({ =>
+            arity(args, 1, "cangjie::rank")
+            rankLispOf(args[0])
+        })
+    }))
+
+    env.define("cangjie::cond", NativeFunc({ args =>
+        guardedLinalg({ =>
+            arity(args, 1, "cangjie::cond")
+            condLispOf(args[0])
+        })
+    }))
+
+    env.define("cangjie::ginv", NativeFunc({ args =>
+        guardedLinalg({ =>
+            arity(args, 1, "cangjie::ginv")
+            pinvLispOf(args[0])
+        })
+    }))
+
+    // (cangjie::pca X) / (cangjie::pca X k)
+    env.define("cangjie::pca", NativeFunc({ args =>
+        guardedLinalg({ =>
+            pcaLispOf(args)
         })
     }))
 }
