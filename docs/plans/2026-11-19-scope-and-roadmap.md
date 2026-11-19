@@ -246,13 +246,32 @@
 
 ---
 
-### 阶段 3：真实数据闭环
+### 阶段 3：真实数据闭环（✅ 已完成 2026-11-19）
 
 **目标**：读一份真实 CSV，做出描述统计并输出结果。
 
 **内容**：`xisp_io`（CSV 读写）+ `xisp_stats`（描述统计、分位数、直方图、相关协方差）
 
 **前置**：阶段 1、2（✅ 均已就绪）。
+
+**落地**：新增 `xisp_io`（8 个符号）与 `xisp_stats`（9 个符号）两个成员。
+
+**验收（116 个用例）**：
+- ✅ 读 CSV → 按列取值 → `mean` / `median` / `std` / `corr` 结果正确
+- ✅ 列表型推断：整数列 → int64、含空 → float64 + NaN、文本 → 列表
+- ✅ 缺失值不冒充 0：`[1, 空, 3]` 的均值是 2 而不是 1.333
+- ✅ **流式**：`csv-open` / `csv-next` / `csv-each`，内存与文件大小无关；70KB 单字段
+  跨 64KB 读块仍正确（引号内换行）
+- ✅ 写出后读回往返一致（含逗号的字段）
+
+**实现时踩到的两个坑**：
+- **`csv-write` 给文本单元格多包一层引号**：`cellToString` 对 `Str` 用了 `toString()`，
+  而 `LispValue.Str("x").toString()` 是带引号的 `"x"`。往返测试抓到。
+- **`ctx.invoke` 在字节码后端下不能回调 Lisp 函数**：`csv-each` 报
+  `AST: closure without bytecode backend`。根因在 core —— `CapabilityContext.invoke`
+  在**域装配时**快照配置，`withCsv()` 排在 `withBytecodeCompiler()` 之前时
+  `decompiler` 还是 `None`。与 0.8.0 修的「配置快照过期」同类，当时只修了
+  `ctx.newEvaluator`，漏了 `ctx.invoke`。已在 core 修（每次调用前刷新）。
 
 **验收**：
 - 读一个含表头、缺失值、引号转义的 CSV，字段类型推断正确
