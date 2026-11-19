@@ -96,16 +96,16 @@ LispInterpreter([withArray(), withStats()])
 
 ## 文档
 
-**📖 [完整文档站](https://ystyle.github.io/xisp-sci/)**
+**📖 [完整文档站](https://ystyle.top/xisp-sci/)**
 
 | | |
 |---|---|
-| [快速开始](https://ystyle.github.io/xisp-sci/guide/01-quickstart) | 五分钟跑通第一个分析 |
-| [Iris 实战](https://ystyle.github.io/xisp-sci/cookbook/iris) | 十分钟走完真实数据 |
-| [教师工作流](https://ystyle.github.io/xisp-sci/cookbook/teacher) | 一个不懂编程的人怎么用 |
-| [API 参考](https://ystyle.github.io/xisp-sci/api/) | 六个模块 57 个符号 |
-| [设计取舍](https://ystyle.github.io/xisp-sci/reference/design) | 为什么这样设计、放弃了什么 |
-| [性能与基准](https://ystyle.github.io/xisp-sci/reference/performance) | 全部实测数字 |
+| [快速开始](https://ystyle.top/xisp-sci/guide/01-quickstart) | 五分钟跑通第一个分析 |
+| [Iris 实战](https://ystyle.top/xisp-sci/cookbook/iris) | 十分钟走完真实数据 |
+| [教师工作流](https://ystyle.top/xisp-sci/cookbook/teacher) | 一个不懂编程的人怎么用 |
+| [API 参考](https://ystyle.top/xisp-sci/api/) | 六个模块 57 个符号 |
+| [设计取舍](https://ystyle.top/xisp-sci/reference/design) | 为什么这样设计、放弃了什么 |
+| [性能与基准](https://ystyle.top/xisp-sci/reference/performance) | 全部实测数字 |
 
 ---
 
