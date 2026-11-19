@@ -328,8 +328,9 @@ main() {
     log("\n## 三、稀疏基线")
     sparseBaseline()
 
-    log("\n## 四、教师工作流（阶段 1 的 MVP 验证）")
+    log("\n## 四、回归工作流（阶段 1 的 MVP 验证）")
     teacherWorkflow()
+    autoRegression()
 
     log("\n## 五、正确性对照（用经典数据集的公开值验证）")
     log("")
