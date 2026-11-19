@@ -30,6 +30,25 @@ jobs:
       - name: Member config and version gate
         run: bash scripts/check-members.sh
 
+      # `bench` 依赖 `xisp_linalg_blas`，后者的 link-option 是 `-lcblas -lblas`。
+      # **BLAS 不是 libc 的一部分**，GitHub runner 默认没有这两者。
+      #
+      # 这个失败特别容易漏：库成员自己编译时不需要它（静态库只编译不链接），
+      # 所以它只在最终可执行程序（bench）链接的那一刻才炸，本地装着 BLAS 的人
+      # 永远看不到。0.3.1 引入可选 BLAS 后端之后 CI 就一直红在这里。
+      #
+      # 用 libopenblas-dev 而不是 libatlas-base-dev：一个 .so 同时导出 BLAS 与
+      # CBLAS 两套符号，把 `-lcblas` / `-lblas` 两个名字都指过去即可；而且
+      # OpenBLAS 的 dgemm 比 ATLAS 快得多，bench 测出来的数才有意义。
+      - name: Install BLAS (required by bench)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libopenblas-dev
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libopenblas.so \
+                      /usr/lib/x86_64-linux-gnu/libcblas.so
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libopenblas.so \
+                      /usr/lib/x86_64-linux-gnu/libblas.so
+
       - name: Build
         run: cjpm build
 
