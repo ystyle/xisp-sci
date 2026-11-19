@@ -32,15 +32,18 @@ import std.math.*
 let STATS_SYMBOLS: Array<String> = [
     "cangjie::mean", "cangjie::median", "cangjie::std", "cangjie::std-pop",
     "cangjie::var", "cangjie::quantile", "cangjie::corr", "cangjie::cov",
-    "cangjie::histogram", "cangjie::min", "cangjie::max"]
+    "cangjie::histogram", "cangjie::min", "cangjie::max",
+    "cangjie::group-by", "cangjie::group-agg"]
 
 public func statsDomain(): LispCapability {
     SimpleCapability(
         "stats",
         STATS_SYMBOLS,
-        { ctx => registerStats(ctx.env) },
+        { ctx => registerStats(ctx) },
         // 纯计算，不触及宿主资源
-        escapable: false,
+        // `group-agg` 要回调 Lisp 函数 —— 那是"执行宿主代码"而不是纯数据运算，
+        // 所以标 escapable。与 num 域（fmin / rk4）同理。
+        escapable: true,
         hostPolicy: false)
 }
 
@@ -271,7 +274,8 @@ func pairedFinite(x: Array<Float64>, y: Array<Float64>): (Array<Float64>, Array<
     (xs.toArray(), ys.toArray())
 }
 
-func registerStats(env: Environment): Unit {
+func registerStats(ctx: CapabilityContext): Unit {
+    let env = ctx.env
     // (cangjie::mean x)
     env.define("cangjie::mean", NativeFunc({ args =>
         guardedStats({ =>
@@ -407,6 +411,69 @@ func registerStats(env: Environment): Unit {
                 }
             }
             LispValue.Float(m)
+        })
+    }))
+
+    // (cangjie::group-by labels values) → [[key, ndarray] …]，按首次出现顺序
+    env.define("cangjie::group-by", NativeFunc({ args =>
+        guardedStats({ =>
+            if (args.size != 2) {
+                throw IllegalArgumentException("cangjie::group-by 需要 (labels values) 两个参数")
+            }
+            let labels = labelsOf(args[0], "cangjie::group-by")
+            let values = asFloatValues(args[1], "cangjie::group-by")
+            if (values.size != labels.size) {
+                throw IllegalArgumentException(
+                    "cangjie::group-by：分组键 ${labels.size} 个，值 ${values.size} 个，长度不一致")
+            }
+            let vals = ArrayList<Float64>()
+            var i: Int64 = 0
+            while (i < values.size) {
+                vals.add(values[i])
+                i++
+            }
+            groupedToLisp(groupValues(labels, vals.toArray()))
+        })
+    }))
+
+    // (cangjie::group-agg labels values f) → [[key, 聚合值] …]
+    //
+    // `f` 是任意 Lisp 函数（`cangjie::mean`、`(lambda (v) (cangjie::quantile v 0.9))` 都行）。
+    // 这是"一行出结果"的形态，省掉调用方自己写 map 拼 alist。
+    env.define("cangjie::group-agg", NativeFunc({ args =>
+        guardedStats({ =>
+            if (args.size != 3) {
+                throw IllegalArgumentException(
+                    "cangjie::group-agg 需要 (labels values f) 三个参数")
+            }
+            let labels = labelsOf(args[0], "cangjie::group-agg")
+            let values = asFloatValues(args[1], "cangjie::group-agg")
+            if (values.size != labels.size) {
+                throw IllegalArgumentException(
+                    "cangjie::group-agg：分组键 ${labels.size} 个，值 ${values.size} 个，长度不一致")
+            }
+            let vals = ArrayList<Float64>()
+            var i: Int64 = 0
+            while (i < values.size) {
+                vals.add(values[i])
+                i++
+            }
+            let g = groupValues(labels, vals.toArray())
+            let fn = args[2]
+            let pairs = ArrayList<LispValue>()
+            var k: Int64 = 0
+            while (k < g.keys.size) {
+                let callArgs = ArrayList<LispValue>()
+                callArgs.add(LispValue.External(ndarrayFromFloats(g.groups[k])))
+                let r = match (ctx.invoke(fn, callArgs)) {
+                    case Error(e) => throw IllegalArgumentException(
+                        "group-agg：对分组 `${g.keys[k]}` 应用函数时出错：${e.message}")
+                    case other => other
+                }
+                pairs.add(listOf([LispValue.Str(g.keys[k]), r]))
+                k++
+            }
+            listOf(pairs.toArray())
         })
     }))
 

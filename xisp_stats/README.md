@@ -25,8 +25,30 @@
 | `cangjie::histogram` | 直方图 → `{"edges": …, "counts": …}` |
 | `cangjie::min` | 最小值（**跳过 NaN**） |
 | `cangjie::max` | 最大值（**跳过 NaN**） |
+| `cangjie::group-by` | 按类别分组 → `[[key, ndarray] …]` |
+| `cangjie::group-agg` | 分组后聚合 → `[[key, 聚合值] …]` |
 
 同时接受 ndarray 与普通列表：`(cangjie::mean arr)` 与 `(cangjie::mean [1 2 3])` 都能用。
+
+## 分组聚合
+
+```lisp
+;; 一行出结果：各物种的花瓣长度均值
+(cangjie::group-agg (hashmap-get d "species") (hashmap-get d "petal_length") cangjie::mean)
+;; → (("setosa" 1.464) ("versicolor" 4.260) ("virginica" 5.552))
+
+;; 或者先分组，再用 map 自己聚合
+(map (lambda (kv) (list (car kv) (cangjie::quantile (cadr kv) 0.9)))
+     (cangjie::group-by (hashmap-get d "species") (hashmap-get d "speed")))
+```
+
+**返回 alist 而不是 HashMap**，是因为 alist 有确定顺序（按类别**首次出现**），
+而 HashMap 的迭代顺序不保证 —— 报告和图表都依赖顺序稳定。alist 还能直接喂给 `map`。
+
+**一次遍历完成分组**（O(n)），不是"对每个类别扫一遍全表"（O(k·n)）。类别一多，
+后者会慢成几倍。
+
+组内**保持原始顺序**（不排序）—— 对时间序列类数据很重要。
 
 ## 设计要点
 

@@ -124,7 +124,8 @@ func writeFile(path: String, content: String): Unit {
 // ===== 基准 1：数据集冒烟 =====
 
 func smokeDataset(name: String, title: String, path: String,
-                  numericCols: Array<String>, groupCol: String): Unit {
+                  numericCols: Array<String>, groupCol: String,
+                  groupValueCol: String): Unit {
     log("\n### ${name}")
     log("")
     if (!exists(path)) {
@@ -174,17 +175,41 @@ func smokeDataset(name: String, title: String, path: String,
     log("counts = ${countsStr}")
     log("```")
 
-    // 4) 文本列的识别
-    if (groupCol.size > 0) {
-        let groups = evalLisp("(hashmap-get d \"${groupCol}\")")
-        let isList = match (groups) {
-            case Cons(_) => true
-            case _ => false
-        }
-        if (isList) {
+    // 4) 分组聚合
+    if (groupCol.size > 0 && groupValueCol.size > 0) {
+        let g = evalLisp(
+            "(cangjie::group-agg (hashmap-get d \"${groupCol}\") " +
+            "(hashmap-get d \"${groupValueCol}\") cangjie::mean)")
+        let err2 = errOf(g)
+        if (err2.size > 0) {
             log("")
-            log("- 分组列 `${groupCol}` 被识别为**文本列表**（不是数值数组）—— 这正确；")
-            log("  按类别聚合需要 `group-by`，还没做。")
+            log("- ❌ 分组失败：${err2}")
+        } else {
+            log("")
+            log("- **分组聚合**（按 `${groupCol}` 分组，算 `${groupValueCol}` 的均值）：")
+            log("")
+            log("```")
+            log("${g.toString()}")
+            log("```")
+            // 校验：Iris 的三行均值是教科书标准数字（pandas groupby 结果）
+            if (groupCol == "species" && groupValueCol == "petal_length") {
+                let expect = ["1.464000", "4.260000", "5.552000"]
+                let shown = g.toString()
+                var allOk = true
+                for (e in expect) {
+                    if (!shown.contains(e)) {
+                        allOk = false
+                    }
+                }
+                if (allOk) {
+                    log("")
+                    log("  ✅ 与 pandas 的 groupby(species)[petal_length].mean() 完全一致")
+                    log("  （setosa 1.464 / versicolor 4.260 / virginica 5.552，Iris 的标准三行数字）")
+                } else {
+                    log("")
+                    log("  ❌ 与 pandas 的 groupby 结果**不一致**")
+                }
+            }
         }
     }
 }
@@ -317,10 +342,10 @@ main() {
     log("\n## 一、数据集冒烟（功能闭环）")
     smokeDataset("Iris（150 行 × 5 列）", "分类数据集，4 个数值特征 + 1 个文本标签",
         "bench/data/iris.csv",
-        ["sepal_length", "sepal_width", "petal_length", "petal_width"], "species")
+        ["sepal_length", "sepal_width", "petal_length", "petal_width"], "species", "petal_length")
     smokeDataset("Boston Housing（506 行 × 14 列）",
         "回归数据集，13 个特征 + medv 目标",
-        "bench/data/boston.csv", ["crim", "rm", "lstat", "medv"], "")
+        "bench/data/boston.csv", ["crim", "rm", "lstat", "medv"], "", "")
 
     log("\n## 二、matmul 规模扫描")
     matmulSweep()

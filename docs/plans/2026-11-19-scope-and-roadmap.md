@@ -521,3 +521,26 @@ GFLOPS 随规模上升到约 2 后趋平：小规模时解释器开销占主导�
 
 ⚠️ 关于「对照 R」：本机没有 R 环境，用 pandas 代替。pandas/NumPy 的 `std(ddof=1)` 与
 `quantile`（线性插值）默认值都与 R 一致，是等价参照。
+
+
+### 补缺口：group-by（✅ 2026-11-19）
+
+阶段 0 的基准里暴露过：Iris 的 `species` 列被识别为文本列表，但**没法按类别聚合** ——
+看「不同物种的花瓣长度差多少」只能手动 `filter` 一遍遍扫全表，类别一多就退化成
+O(类别数 × 行数)。
+
+新增两个符号：
+
+| 符号 | 返回 |
+|---|---|
+| `cangjie::group-by` | `[[key, ndarray] …]` |
+| `cangjie::group-agg` | `[[key, 聚合值] …]` |
+
+**返回 alist 而不是 HashMap**：alist 有确定顺序（按类别首次出现），报告和图表都依赖
+顺序稳定，而 HashMap 的迭代顺序不保证。alist 还能直接喂给 `map`。
+
+**一次遍历**（O(n)）完成分组，不是「对每个类别扫一遍全表」（O(k·n)）。
+
+Iris 的验证：按 `species` 分组算 `petal_length` 均值，得到
+`setosa 1.464 / versicolor 4.260 / virginica 5.552` —— 与 pandas 的 `groupby` 完全一致，
+也正是这个数据集最常被引用的三行数字。
