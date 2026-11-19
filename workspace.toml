@@ -14,4 +14,5 @@
 # 参与发布的成员；members 留空 = 自动（workspace members 里除 *_tests / *_examples 之外的全部）
 [workspace.publish]
   members = []
-  exclude = []
+  # bench 是基准测试可执行程序，不是库，不进发布范围
+  exclude = ["bench"]
