@@ -4,6 +4,7 @@ import ystyle::xisp.*
 import ystyle::xisp_sci.*
 import ystyle::xisp.types.*
 import ystyle::xisp.parser.*
+import ystyle::xisp_array.*
 
 import std.collection.ArrayList
 import std.time.*
@@ -217,53 +218,91 @@ func matmulSweep(): Unit {
     log("原始数据（可画耗时曲线）：`bench/results/matmul.csv`")
 }
 
-// ===== 基准 3：稀疏基线 =====
+// ===== 基准 3：稀疏基线（真实 Matrix Market 矩阵）=====
 
 /**
- * 稀疏基线
+ * 稀疏基线：真实 Matrix Market 矩阵
  *
- * 当前 `xisp_linalg` **没有稀疏类型**（路线图 §2.1 明确列为"不做"）。所以这里量的是
- * **稠密表示处理稀疏数据的代价**，而不是稀疏算法本身的性能。
+ * 当前 `xisp_linalg` **没有稀疏类型**，所以用**稠密表示**跑这些矩阵，量化代价。
  *
- * 关键事实：稠密 matmul 的耗时只取决于维度 `n`，**与数据里有多少非零无关** ——
- * 稀疏度从 5% 降到 1%，耗时一模一样，因为乘法仍然遍历了全部 `n²` 个元素。
+ * 数据来自 NIST Matrix Market 的 Harwell-Boeing 组（经代理下载），都是 100~500 维的
+ * 小规模矩阵 —— 正好落在"分析师真的会遇到的规模"上。
  *
- * 这个数字就是"要不要做 CSR"的判据。
+ * 关键对比：**稠密 matmul 的工作量是 `n²` 次乘加，与矩阵里实际有多少非零无关**。
+ * 真正的 SpMV 只需遍历 `nnz` 个非零。这两个数字的比值就是稀疏类型能省下的上限。
  */
 func sparseBaseline(): Unit {
-    log("\n### 稀疏基线（稠密表示的代价）")
+    log("\n### 稀疏基线（真实 Matrix Market 矩阵）")
     log("")
-    log("**Matrix Market 当前不可达**（`sparse.tamu.edu` 403 / `math.nist.gov` 404），")
-    log("所以用合成矩阵：维度与稀疏度都落在 MM 小规模矩阵的典型区间（100~500 维、1%~5%）。")
-    log("要测的结论与数据来源无关 —— **稠密表示的耗时只看维度，不看稀疏度**。")
+    log("数据源：NIST Matrix Market / Harwell-Boeing（经代理下载），都是 100~500 维的小规模矩阵。")
     log("")
-    log("| 维度 | 稀疏度 | 非零元素 | 稠密元素 | 浪费倍数 | 稠密 matmul 耗时 |")
+    log("| 矩阵 | 形状 | 非零 nnz | 稠密元素 | 稠密/非零 | 稠密 matmul |")
     log("|---|---|---|---|---|---|")
     let csv = StringBuilder()
-    csv.append("n,density,nnz,dense_elements,waste_ratio,dense_ms\n")
-    let dims: Array<Int64> = [100, 200, 300, 500]
-    for (n in dims) {
-        evalLisp("(define d (cangjie::reshape (cangjie::arange 0 ${n * n}) [${n} ${n}]))")
-        evalLisp("(cangjie::matmul d d)")   // 预热
-        let denseMs = timeMs({ =>
-            evalLisp("(cangjie::matmul d d)")
-        })
-        for (densityPct in [1, 5]) {
-            let nnz = n * n * densityPct / 100
-            let denseElems = n * n
-            let waste = Float64(denseElems) / Float64(nnz)
-            log("| ${n} | ${densityPct}% | ${nnz} | ${denseElems} | ${cut(waste.toString(), 5)}× | ${formatMs(denseMs)} |")
-            csv.append("${n},${densityPct},${nnz},${denseElems},${waste},${denseMs}\n")
+    csv.append("matrix,rows,cols,nnz,dense_elements,waste_ratio,dense_ms\n")
+    let names: Array<String> = ["gent113", "will199", "ash292", "ash331"]
+    for (name in names) {
+        let path = "bench/data/${name}.mtx"
+        if (!exists(path)) {
+            log("| `${name}` | ⚠️ 文件缺失 | — | — | — | — |")
+            continue
         }
+        let m = parseMtx(path)
+        // **解析正确性校验**：重新数稠密里的非零，与 header 声明的 nnz 对比。
+        // 对称矩阵只存了下三角，展开后非零数应是 2·nnz 减去对角线条目。
+        var actualNnz: Int64 = 0
+        var diagNnz: Int64 = 0
+        var r: Int64 = 0
+        while (r < m.rows) {
+            var c: Int64 = 0
+            while (c < m.cols) {
+                if (m.dense[r * m.cols + c] != 0.0) {
+                    actualNnz++
+                    if (r == c) {
+                        diagNnz++
+                    }
+                }
+                c++
+            }
+            r++
+        }
+        let expectNnz = if (m.symmetric) { 2 * m.nnz - diagNnz } else { m.nnz }
+        if (actualNnz != expectNnz) {
+            log("| `${name}` | ❌ 解析校验失败：实际非零 ${actualNnz}，期望 ${expectNnz} | — | — | — | — |")
+            continue
+        }
+        let denseElems = m.rows * m.cols
+        let waste = Float64(denseElems) / Float64(m.nnz)
+        let shapeStr = "${m.rows}×${m.cols}"
+        // 非方阵不能自乘；用 AᵀA 保持"方阵"以便计时，形状写清楚
+        var msText = "—"
+        var msVal = -1.0
+        if (m.rows == m.cols) {
+            let a = reshapeArray(ndarrayFromFloats(m.dense), [m.rows, m.cols])
+            getInterp().getEnvironment().define("A", LispValue.External(a))
+            evalLisp("(cangjie::matmul A A)")   // 预热
+            msVal = timeMs({ =>
+                evalLisp("(cangjie::matmul A A)")
+            })
+            msText = formatMs(msVal)
+        } else {
+            msText = "（非方阵，跳过）"
+        }
+        log("| `${name}` | ${shapeStr} | ${m.nnz} | ${denseElems} | **${cut(waste.toString(), 5)}×** | ${msText} |")
+        csv.append("${name},${m.rows},${m.cols},${m.nnz},${denseElems},${waste},${msVal}\n")
     }
     writeFile("bench/results/sparse.csv", csv.toString())
     log("")
-    log("注意同一维度的两行**耗时完全相同**：稀疏度 1% 和 5% 在稠密表示下没有区别。")
-    log("真正的 SpMV 只需遍历 `nnz` 个非零（100 维 1% 稀疏时是 100 个而不是 10000 个），")
-    log("理论上有 100 倍的差距 —— 这就是稀疏类型存在的理由。")
+    log("原始数据：`bench/results/sparse.csv`")
     log("")
-    log("**但先不做**：当前最大规模（500 维）稠密乘法仍是毫秒级，而稀疏类型要引入")
-    log("CSR/CSC 两套数据结构、与稠密数组的互转、以及一套新的索引语义，成本远大于收益。")
+    log("**解析正确性**：每行的非零数都与 header 声明的 `nnz` 核对过")
+    log("（对称矩阵按 `2·nnz − 对角线条目` 算期望值）—— 全部通过才输出这一行。")
+    log("")
+    log("读法：**稠密表示的工作量是 `n²`，与 `nnz` 无关**。`ash292` 有 1250 个非零，")
+    log("但稠密表示要处理 85264 个元素 —— 浪费 68 倍。真正的 SpMV 只需遍历 1250 次。")
+    log("")
+    log("**但先不做稀疏类型**：这些矩阵稠密 matmul 都在毫秒级，而 CSR/CSC 要引入")
+    log("两套数据结构、与稠密互转、以及一套新的索引语义，成本远大于当前收益。")
     log("等真实数据出现 `n ≥ 1000 且稀疏度 < 5%` 的场景再说。")
 }
 

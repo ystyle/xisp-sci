@@ -16,3 +16,5 @@
 [dependencies]
   "ystyle::xisp" = { path = "../../xisp/core" }
   "ystyle::xisp_sci" = "0.2.0"
+  # 直接构造 ndarray 注入解释器（Matrix Market 基准用）
+  "ystyle::xisp_array" = "0.2.0"
