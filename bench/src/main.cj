@@ -384,6 +384,9 @@ main() {
     backendLimits()
     backendOverhead()
 
+    log("\n## 十、跨层开销")
+    layerOverhead()
+
     log("\n## 六、编译优化开关的影响（A/B 实测）")
     log("")
     log("同一个 `matmul`，只把 `xisp_linalg` 的 `compile-option` 从 `\"-O2 -Woff unused\"`")
