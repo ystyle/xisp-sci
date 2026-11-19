@@ -30,6 +30,8 @@
 | `cangjie::t-test1` | 单样本 t 检验 → `{t, df, p, mean, se, n}` |
 | `cangjie::t-test2` | 双样本 Welch t 检验 → `{t, df, p, mean1, mean2, …}` |
 | `cangjie::ci` | 均值置信区间 → `{lo, hi, mean, se, df, tcrit}` |
+| `cangjie::five-num` | 箱线图数据（五数概括 + 离群点） |
+| `cangjie::corr-matrix` | 相关矩阵（热力图数据） |
 
 同时接受 ndarray 与普通列表：`(cangjie::mean arr)` 与 `(cangjie::mean [1 2 3])` 都能用。
 
@@ -80,6 +82,27 @@
 Gamma 函数用 Lanczos 近似、不完全 Beta 用连分式 + Lentz 算法、分位数用二分反解。
 验证方式是拿**教科书 t 分位数表**逐个对（df=1 → 12.706、df=30 → 2.042），
 容差 1e-3 全过。
+
+## 图表数据
+
+本仓**不渲染**图表，只产出绘图层需要的数据结构。
+
+散点图、折线图不需要专门函数 —— 要的就是数据本身。箱线图与相关矩阵需要真实计算：
+
+```lisp
+(cangjie::five-num col)
+;; → {"q1": 1.4, "median": 1.5, "q3": 1.575, "iqr": 0.175,
+;;    "low_whisker": 1.2, "high_whisker": 1.7, "outliers": #<ndarray ...>}
+
+(cangjie::corr-matrix X)     ; X 是 n×p，输出 p×p
+```
+
+**箱线图的须不是 min/max**。Tukey 的 1.5·IQR 规则下，须止于**围栏内最远的实际数据点**，
+围栏外的点单列为离群点。这个约定很重要 —— 若用极值当须，一个离群点会把箱体压扁到
+看不出中位数在哪。
+
+**相关系数用成对删除缺失**：某行在变量 i 上缺失、在 j 上没缺失时，这一行对 `(i,j)`
+不可用，但对其它变量对仍然可用。改成整行删除会让样本量凭空少一大截。
 
 ## 设计要点
 

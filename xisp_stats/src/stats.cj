@@ -34,7 +34,8 @@ let STATS_SYMBOLS: Array<String> = [
     "cangjie::var", "cangjie::quantile", "cangjie::corr", "cangjie::cov",
     "cangjie::histogram", "cangjie::min", "cangjie::max",
     "cangjie::group-by", "cangjie::group-agg",
-    "cangjie::t-test1", "cangjie::t-test2", "cangjie::ci"]
+    "cangjie::t-test1", "cangjie::t-test2", "cangjie::ci",
+    "cangjie::five-num", "cangjie::corr-matrix"]
 
 public func statsDomain(): LispCapability {
     SimpleCapability(
@@ -511,6 +512,58 @@ func registerStats(ctx: CapabilityContext): Unit {
             let x = asFloatValues(args[0], "cangjie::ci")
             let level = numOf(args[1], "cangjie::ci")
             confidenceInterval(x, level)
+        })
+    }))
+
+    // (cangjie::five-num x) —— 箱线图数据（五数概括 + 离群点）
+    env.define("cangjie::five-num", NativeFunc({ args =>
+        guardedStats({ =>
+            if (args.size != 1) {
+                throw IllegalArgumentException("cangjie::five-num 需要 1 个参数")
+            }
+            fiveNumSummary(asFloatValues(args[0], "cangjie::five-num"))
+        })
+    }))
+
+    // (cangjie::corr-matrix X) —— 相关矩阵（热力图数据），X 是 n×p
+    env.define("cangjie::corr-matrix", NativeFunc({ args =>
+        guardedStats({ =>
+            if (args.size != 1) {
+                throw IllegalArgumentException("cangjie::corr-matrix 需要 1 个参数")
+            }
+            let a = match (args[0]) {
+                case External(e) => match (e) {
+                    case x: NDArray => x.copy()
+                    case _ => throw IllegalArgumentException(
+                        "cangjie::corr-matrix 需要 ndarray")
+                }
+                case _ => throw IllegalArgumentException(
+                    "cangjie::corr-matrix 需要 ndarray")
+            }
+            let dims = a.shape
+            if (dims.size != 2) {
+                throw IllegalArgumentException(
+                    "cangjie::corr-matrix 需要 2D 矩阵（n×p），得到 ${dims.size} 维")
+            }
+            let n = dims[0]
+            let p = dims[1]
+            let rows = ArrayList<Array<Float64>>()
+            var i: Int64 = 0
+            while (i < n) {
+                let row = Array<Float64>(p, repeat: 0.0)
+                var j: Int64 = 0
+                while (j < p) {
+                    row[j] = match (a.at(i * p + j)) {
+                        case Float(x) => x
+                        case Int(x) => Float64(x)
+                        case _ => Float64.getNaN()
+                    }
+                    j++
+                }
+                rows.add(row)
+                i++
+            }
+            correlationMatrix(rows.toArray(), p)
         })
     }))
 
