@@ -109,6 +109,48 @@ func matrixToArray(rows: Int64, cols: Int64, data: Array<Float64>): NDArray {
  * `C[i][j] = Σ_k A[i][k] * B[k][j]` —— 直接写会让 B 的访问跨行跳跃；
  * 先把 B 转置成 `BT[j][k]`，两个操作数在内层循环里都是连续的。
  */
+/**
+ * matmul 的可替换后端
+ *
+ * 默认是纯仓颉实现。外部可以注册一个更快的实现（比如 CBLAS 的 `cblas_dgemm`）——
+ * 这样 `xisp_linalg` **保持零依赖**，加速器作为独立的可选成员存在。
+ *
+ * 签名与 `matmulRaw` 一致：`(rows, k, cols, a, b) → 结果`，全部行优先、连续
+ * `Float64`。注册方必须保证语义相同（包括维度校验已在上层做过）。
+ *
+ * 返回 `Some` 表示已注册后端；`None` 时走纯仓颉实现。
+ */
+var matmulBackend: Option<(Int64, Int64, Int64, Array<Float64>, Array<Float64>) -> Array<Float64>> =
+    None
+
+/** 注册加速后端（由可选成员在装配时调用） */
+public func setMatmulBackend(
+    f: (Int64, Int64, Int64, Array<Float64>, Array<Float64>) -> Array<Float64>): Unit {
+    matmulBackend = Some(f)
+}
+
+/** 撤销加速后端，回到纯仓颉实现 */
+public func clearMatmulBackend(): Unit {
+    matmulBackend = None
+}
+
+/** 是否已注册加速后端 */
+public func hasMatmulBackend(): Bool {
+    match (matmulBackend) {
+        case Some(_) => true
+        case None => false
+    }
+}
+
+/** 实际入口：有后端走后端，没有走纯仓颉 */
+func matmulDispatch(rows: Int64, k: Int64, cols: Int64,
+                    a: Array<Float64>, b: Array<Float64>): Array<Float64> {
+    match (matmulBackend) {
+        case Some(f) => f(rows, k, cols, a, b)
+        case None => matmulRaw(rows, k, cols, a, b)
+    }
+}
+
 func matmulRaw(rows: Int64, k: Int64, cols: Int64,
                a: Array<Float64>, b: Array<Float64>): Array<Float64> {
     let bt = Array<Float64>(k * cols, repeat: 0.0)
@@ -229,7 +271,7 @@ func matmulLisp(av: LispValue, bv: LispValue): LispValue {
             throw IllegalArgumentException(
                 "matmul 维度不匹配：行向量长度 ${k}，矩阵行数 ${bk}")
         }
-        return LispValue.External(ndarrayFromFloats(matmulRaw(1, k, n, aData, bData)))
+        return LispValue.External(ndarrayFromFloats(matmulDispatch(1, k, n, aData, bData)))
     }
     if (bIsVec) {
         let m = ad[0]
@@ -238,7 +280,7 @@ func matmulLisp(av: LispValue, bv: LispValue): LispValue {
             throw IllegalArgumentException(
                 "matmul 维度不匹配：矩阵列数 ${k}，向量长度 ${bd[0]}")
         }
-        return LispValue.External(ndarrayFromFloats(matmulRaw(m, k, 1, aData, bData)))
+        return LispValue.External(ndarrayFromFloats(matmulDispatch(m, k, 1, aData, bData)))
     }
     let m = ad[0]
     let k = ad[1]
@@ -248,7 +290,7 @@ func matmulLisp(av: LispValue, bv: LispValue): LispValue {
         throw IllegalArgumentException(
             "matmul 维度不匹配：A 是 ${m}×${k}，B 是 ${bk}×${n}")
     }
-    LispValue.External(matrixToArray(m, n, matmulRaw(m, k, n, aData, bData)))
+    LispValue.External(matrixToArray(m, n, matmulDispatch(m, k, n, aData, bData)))
 }
 
 /** `(cangjie::trace A)` —— 方阵对角线之和 */

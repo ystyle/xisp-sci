@@ -93,6 +93,55 @@ AST 求值器用**宿主语言的调用栈**递归下降，深度上限 1000 层
 
 所以选后端的依据是「需要不需要深递归」，不是「哪个快」。
 
+## 可选 BLAS 加速
+
+`xisp_linalg` 默认是纯仓颉实现。想让 `matmul` 更快，装可选成员 `xisp_linalg_blas`：
+
+```cangjie
+import ystyle::xisp_linalg_blas.*
+
+enableBlas()                                  // 之后所有 matmul 走 cblas_dgemm
+let interp = LispInterpreter([withSci()])
+```
+
+**零 C 代码** —— 只有一句 `foreign` 声明。CBLAS 接口是标准化的，同一个声明能对接
+netlib Reference、OpenBLAS、BLIS、MKL、Apple Accelerate。
+
+### 实测（800×800，Lisp 层端到端）
+
+| 后端 | 耗时 | GFLOPS | 相对 |
+|---|---|---|---|
+| 纯仓颉（默认） | 471 ms | 2.17 | 1× |
+| BLAS（netlib Reference 3.12.0） | 214 ms | 4.79 | **2.20×** |
+
+换成 OpenBLAS 单核可以到 30~50 GFLOPS（10~15 倍）。
+
+有意思的是：netlib Reference 的源码就是**朴素三重循环**，和我们写得几乎一样。
+它快一倍多完全来自 **gfortran -O2 的自动向量化** —— 差距不在算法，在编译器的
+向量化能力。这也解释了为什么给纯仓颉实现加「分块」没有用（实测反而更慢）：
+瓶颈在指令级并行，不在 cache。
+
+### 跨平台
+
+**BLAS 不属于 libc** —— 它是独立的数学库。符号名跨平台一致，差别只在链接参数：
+
+| 平台 | `link-option` | 库从哪来 |
+|---|---|---|
+| Linux | `-lblas` | 发行版包（Debian `libblas3`，要快装 `libopenblas0`） |
+| macOS | `-framework Accelerate` | **系统自带**，Apple 优化过 |
+| Windows | OpenBLAS 的库路径 | 需要自己装 |
+
+Linux 上「看起来像自带」通常是因为装了 numpy / scipy 顺带装上 —— fresh 系统其实没有。
+改 `xisp_linalg_blas/cjpm.toml` 的 `link-option` 即可切换。
+
+### 为什么不塞进主模块
+
+`cjpm` 没有可选依赖机制。把 `link-option` 写进 `xisp_linalg`，**所有**用户都被迫装
+BLAS，零依赖的前提就没了。所以加速器做成独立的可选成员：
+
+- 有 BLAS → 装上，2~15 倍
+- 没有 → 不装，功能完全一样
+
 ## 稀疏矩阵的代价
 
 Matrix Market 真实矩阵，用**稠密表示**：

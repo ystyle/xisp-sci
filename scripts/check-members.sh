@@ -75,11 +75,16 @@ def is_publishable(dirname, pkg):
 
 # 允许出现平台相关配置（C 库 / stdx / bin-dependencies 等）的成员白名单。
 #
-# 当前为空：xisp-sci 全工作区零原生依赖。
-# 将来 xisp_linalg / xisp_signal 把 LAPACK / BLAS / FFTW 接进来时，**必须先在这里登记**，
-# 并同步给 CI 与文档 —— 否则 C 依赖会悄悄渗进不需要它的成员，消费方在新机器上构建失败。
+# 主模块（array / io / stats / linalg / signal / num / sci）全部零原生依赖。
+# 唯一的例外是**可选的加速后端** —— 它本来就是为了"想快的人自己装"而存在的，
+# 不装就不编译它，主模块不受影响。
+#
+# 登记新成员前想清楚：这个 C 依赖是**可选加速**，还是**主路径必需**？
+# 后者会破坏「零依赖即可构建」这个前提，消费方在新机器上直接构建失败。
 # 注意：`[ffi.c]` + `link-option` 这类配置**不会**随 workspace 根生效，必须每个成员各自声明。
-NATIVE_ALLOWED = set()
+NATIVE_ALLOWED = {
+    "xisp_linalg_blas",   # 可选：foreign 调系统 BLAS（cblas_dgemm），不装则退回纯仓颉
+}
 
 cjc_versions = {}
 for path in members:

@@ -7,7 +7,7 @@
   output-type = "executable"
   compile-option = "-O2 -Woff unused"
   override-compile-option = ""
-  link-option = "-lcblas -lblas"
+  link-option = ""
   include = ["/src"]
   license = ["MIT"]
   authors = ["ystyle"]
@@ -20,3 +20,5 @@
   "ystyle::xisp_array" = "0.3.0"
   # 三后端性能对比需要 withBytecodeCompiler / withJit
   "ystyle::xisp_bc" = "0.9.2"
+  "ystyle::xisp_linalg" = "0.3.0"
+  "ystyle::xisp_linalg_blas" = "0.3.0"
