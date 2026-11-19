@@ -218,3 +218,48 @@ class StatsBasicTest {
         println("✓ 等宽分箱，最大值归入最后一箱")
     }
 }
+
+/**
+ * nan-aware 的 `min` / `max`
+ *
+ * core 的 `(min x)` / `(max x)` 保持数学语义：NaN 参与比较后整体变 NaN。
+ * 这对数值计算是对的（NaN 就该传播），但数据分析里 NaN 是"缺失"不是"无穷小" ——
+ * 一批数据里有一个空值就让最大值变成 NaN 是不能接受的。
+ *
+ * 所以 `cangjie::min` / `cangjie::max` 跳过 NaN。**两套语义各有正确用法**，
+ * ISLR 的 `Hitters.Salary`（322 行里 59 个缺失）就是后者。
+ */
+@Test
+class NanAwareMinMaxTest {
+    @TestCase
+    func testSkipsNaN() {
+        println("\n=== 跳过 NaN 的 min/max ===")
+        let nan = Float64.getNaN()
+        let v = [3.0, nan, 1.0, nan, 5.0]
+        // 用内部的 finiteOf 验证语义（Lisp 层在契约测试里）
+        let finite = finiteOf(v)
+        expectInt(finite.size, 3, "有效样本数")
+        var mx = finite[0]
+        var mn = finite[0]
+        for (x in finite) {
+            if (x > mx) {
+                mx = x
+            }
+            if (x < mn) {
+                mn = x
+            }
+        }
+        expectNum(mx, 5.0, 1e-12, "max 跳过 NaN")
+        expectNum(mn, 1.0, 1e-12, "min 跳过 NaN")
+        println("✓ [3, NaN, 1, NaN, 5] 的 max=5、min=1")
+    }
+
+    @TestCase
+    func testAllNaN() {
+        println("\n=== 全 NaN ===")
+        let nan = Float64.getNaN()
+        let v = finiteOf([nan, nan])
+        expectInt(v.size, 0, "无有效样本")
+        println("✓ 全 NaN 时有效样本为 0（min/max 返回 NaN）")
+    }
+}

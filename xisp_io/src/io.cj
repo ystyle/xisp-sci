@@ -96,11 +96,34 @@ enum ColumnKind {
     | Texts
 }
 
-func tryParseFloat(s: String): Option<Float64> {
+/**
+ * 缺失标记
+ *
+ * 真实 CSV 里"没有值"远不止空字符串一种写法：R 导出的是 `NA`，Python 的 pandas 可能
+ * 写 `NaN`，Excel 手工表里常见 `?` 和 `N/A`。**只认空串会让这些列整列退化成文本**，
+ * 而文本列无法参与统计 —— 一个 `?` 就毁掉一列。
+ *
+ * 注意不把 `-` 当缺失：它是合法的负号前缀。
+ */
+func isMissingMark(s: String): Bool {
     let t = s.trimAscii()
     if (t.size == 0) {
+        return true
+    }
+    if (t == "?" || t == "NA" || t == "N/A" || t == "null" || t == "NULL") {
+        return true
+    }
+    if (t == "NaN" || t == "nan" || t == "#N/A") {
+        return true
+    }
+    false
+}
+
+func tryParseFloat(s: String): Option<Float64> {
+    if (isMissingMark(s)) {
         return None
     }
+    let t = s.trimAscii()
     try {
         Some(Float64.parse(t))
     } catch (e: Exception) {
@@ -109,10 +132,10 @@ func tryParseFloat(s: String): Option<Float64> {
 }
 
 func tryParseInt(s: String): Option<Int64> {
-    let t = s.trimAscii()
-    if (t.size == 0) {
+    if (isMissingMark(s)) {
         return None
     }
+    let t = s.trimAscii()
     try {
         Some(Int64.parse(t))
     } catch (e: Exception) {
@@ -132,7 +155,7 @@ func inferColumn(values: Array<String>): ColumnKind {
     var allInt = true
     var allFloat = true
     for (v in values) {
-        if (v.trimAscii().size == 0) {
+        if (isMissingMark(v)) {
             hasEmpty = true
             continue
         }

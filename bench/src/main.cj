@@ -348,6 +348,9 @@ main() {
     log("尤其 `medv` 的标准差 9.19710 —— 它是**样本**标准差（除 n−1），")
     log("若误用总体标准差（除 n）会得到 9.1880，差在第四位。")
     log("")
+    log("\n## 七、统计正确性基准")
+    statsCorrectness()
+
     log("\n## 六、编译优化开关的影响（A/B 实测）")
     log("")
     log("同一个 `matmul`，只把 `xisp_linalg` 的 `compile-option` 从 `\"-O2 -Woff unused\"`")

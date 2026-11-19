@@ -383,3 +383,70 @@ class CsvStreamTest {
     }
 }
 
+
+/**
+ * 缺失标记的识别
+ *
+ * 真实数据的"没有值"远不止空字符串：R 导出 `NA`、pandas 可能写 `NaN`、
+ * Excel 手工表常见 `?` 和 `N/A`。**只认空串会让这些列整列退化成文本**，
+ * 而文本列无法参与统计 —— 一个 `?` 就毁掉一列。
+ *
+ * 这是 ISLR 的 `Hitters.Salary` 暴露出来的：322 行里 59 个 `?`，整列被当成文本，
+ * `(cangjie::max salary)` 直接失败。
+ */
+@Test
+class MissingMarkTest {
+    @TestCase
+    func testMarksRecognized() {
+        println("\n=== 缺失标记 ===")
+        let marks = ["", "  ", "?", "NA", "N/A", "null", "NULL", "NaN", "nan", "#N/A"]
+        for (m in marks) {
+            if (!isMissingMark(m)) {
+                @Fail("`${m}` 应被识别为缺失")
+            }
+        }
+        // 合法的负号前缀不能被误判
+        for (v in ["-", "-1", "-1.5", "0", "1e3"]) {
+            if (v == "-") {
+                continue        // 单独的减号确实无意义，但不强求
+            }
+            if (isMissingMark(v)) {
+                @Fail("`${v}` 不应被识别为缺失")
+            }
+        }
+        println("✓ 10 种缺失标记全部识别")
+    }
+
+    /**
+     * **含 `?` 的数值列应变成 float64 + NaN，而不是文本列表**
+     *
+     * 这是修 bug 的核心：改成文本后 `max` / `mean` 全都用不了。
+     */
+    @TestCase
+    func testMarkDoesNotDestroyColumn() {
+        println("\n=== 含缺失标记的数值列 ===")
+        let col = columnToLisp(["100", "?", "300", "NA", "500"])
+        match (col) {
+            case External(e) =>
+                match (e) {
+                    case a: NDArray =>
+                        if (a.dtype != DType.Floats) {
+                            @Fail("含 ? 的数值列应为 float64，实际 ${a.dtype.name()}")
+                        }
+                        let v1 = match (a.at(1)) { case Float(x) => x; case _ => 0.0 }
+                        if (!v1.isNaN()) {
+                            @Fail("`?` 位置应为 NaN，实际 ${v1}")
+                        }
+                        let v0 = match (a.at(0)) { case Float(x) => x; case _ => 0.0 }
+                        if (v0 != 100.0) {
+                            @Fail("正常值应保留，实际 ${v0}")
+                        }
+                    case _ => @Fail("应返回 ndarray，实际 ${col.toString()}")
+                }
+            case Cons(_) =>
+                @Fail("含 ? 的数值列退化成了文本列表 —— 这正是要修的 bug")
+            case _ => @Fail("应返回 ndarray")
+        }
+        println("✓ 含 ? 的列仍是 float64 数组，? 位置是 NaN")
+    }
+}

@@ -32,7 +32,7 @@ import std.math.*
 let STATS_SYMBOLS: Array<String> = [
     "cangjie::mean", "cangjie::median", "cangjie::std", "cangjie::std-pop",
     "cangjie::var", "cangjie::quantile", "cangjie::corr", "cangjie::cov",
-    "cangjie::histogram"]
+    "cangjie::histogram", "cangjie::min", "cangjie::max"]
 
 public func statsDomain(): LispCapability {
     SimpleCapability(
@@ -361,6 +361,52 @@ func registerStats(env: Environment): Unit {
             let y = asFloatValues(args[1], "cangjie::corr")
             let pair = pairedFinite(x, y)
             LispValue.Float(correlationOf(pair[0], pair[1]))
+        })
+    }))
+
+    // (cangjie::min x) / (cangjie::max x) —— **跳过 NaN** 的版本
+    //
+    // core 的 `(min x)` / `(max x)` 保持数学语义：NaN 参与比较后整体变成 NaN。
+    // 这对数值计算是对的（NaN 就该传播），但数据分析里 NaN 是"缺失"而不是"无穷小"，
+    // 一批数据里有一个空值就让最大值变成 NaN 是不能接受的。
+    //
+    // 所以这里提供 nan-aware 的版本：**加了 `cangjie::` 前缀就是"数据分析语义"**。
+    // 这不是重复实现，是两套语义各有正确用法。
+    env.define("cangjie::min", NativeFunc({ args =>
+        guardedStats({ =>
+            if (args.size != 1) {
+                throw IllegalArgumentException("cangjie::min 需要 1 个参数")
+            }
+            let v = finiteOf(asFloatValues(args[0], "cangjie::min"))
+            if (v.size == 0) {
+                return LispValue.Float(Float64.getNaN())
+            }
+            var m = v[0]
+            for (x in v) {
+                if (x < m) {
+                    m = x
+                }
+            }
+            LispValue.Float(m)
+        })
+    }))
+
+    env.define("cangjie::max", NativeFunc({ args =>
+        guardedStats({ =>
+            if (args.size != 1) {
+                throw IllegalArgumentException("cangjie::max 需要 1 个参数")
+            }
+            let v = finiteOf(asFloatValues(args[0], "cangjie::max"))
+            if (v.size == 0) {
+                return LispValue.Float(Float64.getNaN())
+            }
+            var m = v[0]
+            for (x in v) {
+                if (x > m) {
+                    m = x
+                }
+            }
+            LispValue.Float(m)
         })
     }))
 

@@ -499,3 +499,25 @@ GFLOPS 随规模上升到约 2 后趋平：小规模时解释器开销占主导�
 自己算完自己对照没有意义。
 
 为了让回归能跑，`xisp_linalg` 加了第 9 个符号 `cangjie::lstsq`（见 §5 阶段 4）。
+
+
+### 阶段 2 统计正确性基准（✅ 2026-11-19）
+
+四个 ISLR 教科书数据集（Wage / Smarket / Hitters / Carseats）、12 个数值列、
+每列 7 个统计量，与 **pandas** 逐项比对（pandas 的默认约定与 R 一致：
+`std` 用 `ddof=1`、`quantile` 用线性插值 = R 的 `type=7`）：
+
+**12/12 全部通过，容差 1e-6。**
+
+这个基准抓到了两个真 bug：
+
+1. **`?` 让整列退化成文本**。`Hitters.Salary` 有 59 个 `?`（ISLR 原版就有），
+   我们的 CSV 解析只认空串为缺失，于是整列变成文本列表，`max` / `mean` 全都用不了。
+   修：`isMissingMark` 认 10 种写法（空串 / `?` / `NA` / `N/A` / `null` / `NULL` /
+   `NaN` / `nan` / `#N/A`）。
+2. **core 的 `max` / `min` 不跳 NaN**。`sum` / `max` / `min` 是数学语义（NaN 传播），
+   而数据分析里 NaN 是「缺失」。修：stats 域加 nan-aware 的 `cangjie::min` / `cangjie::max`。
+   **两套语义各有正确用法**：裸名 = 数学，加前缀 = 数据分析。
+
+⚠️ 关于「对照 R」：本机没有 R 环境，用 pandas 代替。pandas/NumPy 的 `std(ddof=1)` 与
+`quantile`（线性插值）默认值都与 R 一致，是等价参照。
