@@ -197,11 +197,28 @@
 
 ---
 
-### 阶段 2：统一标量与向量
+### 阶段 2：统一标量与向量（✅ 已完成 2026-11-19）
 
 **目标**：`(sin 1.0)` 与 `(sin arr)` 同名可用；`(+ arr arr)` 按广播规则工作。
 
-**内容**：
+**落地**：core 侧随 xisp 0.9.0 发布（17 个标量数学 + 3 个能力接口），本仓侧
+在 `arith.cj` / `reduce.cj` / `elementwise.cj` / `broadcast.cj` 实现。
+
+| 能力 | 接口 | 文件 |
+|---|---|---|
+| `+ - * /`（含广播） | `LispExternalArithmetic` | `arith.cj` + `broadcast.cj` |
+| `sum` / `product` / `max` / `min` | `LispExternalReducible` | `reduce.cj` |
+| `sin` / `exp` / `sqrt` / `abs` / `floor` … | `LispExternalElementwise` | `elementwise.cj` |
+
+**验收（80 个用例，33 白盒 + 47 契约）**：
+- ✅ 广播与 NumPy 一致：`[3,1] + [1,4]` → `[3,4]`；`[2,3] + [3]` → `[2,3]`；`[2,3] + [2]` 报错
+- ✅ 广播零拷贝（长度 1 的维 stride 置 0，不复制数据）
+- ✅ 减法/除法方向正确：`(- 10 arr)` 是 `10 - arr`
+- ✅ dtype 提升：int + float → float；除法恒 float；bool 不参与算术
+- ✅ `(sin arr)` 与 `(sin 1.0)` 是同一个符号
+- ✅ 三后端（AST / 字节码 / JIT）结果一致
+
+**内容（原计划）**：
 - **xisp 侧**（阻塞项）：core 补标量数学（§4.1）+ 算术接口与归约分派（§4.2），发新版
 - 本仓：逐元素算术、广播、逐元素数学（经能力接口，不重复实现）
 
@@ -213,6 +230,18 @@
 - `(+ arr arr)` 走能力接口而非拷贝回 Lisp 列表
 - 三个后端（AST / 字节码 / JIT）结果一致
 
+**实现时踩到的两个坑**（已补用例钉住）：
+
+- **字节码后端不认识外部值**：AST 的 `+ - * /` 走 `NativeFunc`、能分派，但字节码把它们
+  编成 `OP_ADD` / `OP_SUB` / `OP_MUL` / `OP_DIV`，VM 里只认 `Int` / `Float`。同一段
+  `(+ arr arr)` 在 AST 能算、在字节码报 `+: expected a number`。修法是 VM 的四个算术
+  操作码在非数值组合时回退到 `BuiltinFunctions.dispatchArith`，与 AST 共用一份分派逻辑
+  （随 xisp 0.9.1 发布）。
+  **教训**：外部值分派横跨 AST / 字节码 / JIT 三条路径，只在 AST 上测等于没测。
+- **`inf` / `nan` 让显示层崩**：`formatFloatValue` 里的 `Float64(Int64(f))` 对 `inf`
+  抛 `OverflowException`，而 `(log 0)` 就是 `-inf`。数值计算里特殊值是正常结果，
+  显示层不能因为一个 `inf` 就崩。
+
 **不做**：复数、`einsum` 之类的花式索引。
 
 ---
@@ -223,7 +252,7 @@
 
 **内容**：`xisp_io`（CSV 读写）+ `xisp_stats`（描述统计、分位数、直方图、相关协方差）
 
-**前置**：阶段 1、2。
+**前置**：阶段 1、2（✅ 均已就绪）。
 
 **验收**：
 - 读一个含表头、缺失值、引号转义的 CSV，字段类型推断正确

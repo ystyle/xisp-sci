@@ -3,12 +3,20 @@
 [星枢（xisp）](https://gitcode.com/ystyle/xisp) 的科学计算扩展——NDArray 与建立在它之上的
 线性代数 / 统计 / 信号处理。
 
-**当前状态：数组地基可用**（阶段 1 完成）。`xisp_array` 提供 9 个符号：构造
+**当前状态：数组可算**（阶段 1 + 2 完成）。`xisp_array` 提供 9 个符号：构造
 （`array` / `zeros` / `ones` / `arange`）、形状（`shape` / `reshape` / `transpose`）、
-视图（`slice`）与谓词（`ndarray?`）。切片是零拷贝视图，`length` / `nth` / `type-of` 由
-core 通过能力接口分派，不在域里重复注册。
+视图（`slice`）与谓词（`ndarray?`）。
 
-**还没有算术** —— `(+ arr arr)` 要等阶段 2，它阻塞在 core 侧的算术能力接口上（见路线图 §4.2）。
+**算术、归约与数学函数不额外注册符号** —— 它们复用 core 的同名内建，靠能力接口分派：
+
+```lisp
+(+ (cangjie::array [1 2 3]) 10)              ; #<ndarray int64 [11 12 13]>
+(+ (cangjie::array [[1] [2]]) (cangjie::array [[3 4]]))
+                                              ; #<ndarray int64 [[4 5] [5 6]]>  广播
+(sum (cangjie::array [1 2 3 4]))              ; 10
+(sin (cangjie::array [0.0]))                  ; #<ndarray float64 [0.0]>
+(sqrt (cangjie::arange 0 4))                  ; #<ndarray float64 [0.0 1.0 1.4142135623730951 1.7320508075688772]>
+```
 
 ## 为什么是独立的仓库 / workspace
 
@@ -54,12 +62,25 @@ core 通过能力接口分派，不在域里重复注册。
 
 ## 与 xisp 的版本关系
 
-跨 workspace 依赖**只能走中心仓的精确版本号**（`"ystyle::xisp" = "0.8.0"`），不能用
-`{ path = ... }` —— path 依赖发布不了。
+**开发期用 path 依赖**，指向同工作区的 xisp 源码：
 
-由此带来一个必须知道的约束：**xisp 侧加了新 API，本仓要等那个版本发到中心仓才能用上**。
-如果发现必须改 xisp 才能实现某个数组能力，多半说明 core 的 `External` 接缝不够用 —— 那是
-比"跨仓发版麻烦"重要得多的信号，应当先修接缝。
+```toml
+[dependencies]
+  "ystyle::xisp" = { path = "../../xisp/core" }
+  "ystyle::xisp_bc" = { path = "../../xisp/xisp_bc" }   # 仅测试用
+```
+
+这样改 xisp 不必每次都发版 —— 否则「数组侧发现 core 缺一个能力 → 改 core → 发整产品 →
+等中心仓同步 → 回来继续」这个循环会反复发生，而发版本身就是几分钟到十几分钟的等待。
+
+**发版前必须改回精确版本号**：path 依赖不能 `cjpm bundle` / `publish`。恢复成
+`"ystyle::xisp" = "x.y.z"`、跑一遍 `cjpm ws check` 与 `full test` 再发。
+
+这条规则的边界：path 依赖只用于**本仓还没发布过**的开发阶段。一旦本仓有版本在中心仓，
+下游拿到的制品里不能有 path 依赖 —— 所以「改回版本号」不是可选项。
+
+另外，如果发现**必须改 xisp 才能实现某个数组能力**，先停一下：那多半说明 core 的
+`External` 接缝不够用，比「绕过去」重要得多。
 
 ## 模块命名
 

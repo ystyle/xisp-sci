@@ -379,10 +379,16 @@ func shapeSize(dims: Array<Int64>): Int64 {
  * `.17g` 保真策略**故意不同** —— 那个是为了数据往返不失真，这个是给人看的。
  */
 func formatFloatValue(f: Float64): String {
-    if (f != f) {
+    // 先挡掉 nan / inf：`Int64(inf)` 会抛 OverflowException
+    // （"Casting Infinite or NaN value to integer"），而数值计算里 inf / nan
+    // 是正常结果（`(log 0)` 就是 -inf），显示层不能崩。
+    if (f.isNaN()) {
         return "nan"
     }
-    if (f == Float64(Int64(f)) && f < 1e15 && f > -1e15) {
+    if (f.isInf()) {
+        return if (f > 0.0) { "inf" } else { "-inf" }
+    }
+    if (f < 1e15 && f > -1e15 && f == Float64(Int64(f))) {
         return "${Int64(f)}.0"
     }
     var s = f.toString()

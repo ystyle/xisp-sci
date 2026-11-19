@@ -4,6 +4,7 @@ import ystyle::xisp.types.*
 import std.unittest.*
 import std.unittest.testmacro.*
 import std.collection.ArrayList
+import std.math.*
 
 /**
  * NDArray 的白盒测试
@@ -418,7 +419,13 @@ class NDArrayTest {
             "#<ndarray int64 [[1 2] [3 4]]>", "2D int")
         expectStr(arrayFromLisp(floatsLv([1.0, 2.5])).display(),
             "#<ndarray float64 [1.0 2.5]>", "1D float 去尾 0")
-        println("✓ 三种格式正确，浮点不留 6 位尾数")
+        // inf / nan 必须能显示：它们在数值计算里是正常结果（(log 0) 就是 -inf），
+        // 而 `Int64(inf)` 会抛异常 —— 显示层不能因为一个特殊值就崩。
+        expectStr(arrayFromLisp(floatsLv([Float64.getInf(), -Float64.getInf()])).display(),
+            "#<ndarray float64 [inf -inf]>", "inf 显示")
+        expectStr(arrayFromLisp(floatsLv([Float64.getNaN()])).display(),
+            "#<ndarray float64 [nan]>", "nan 显示")
+        println("✓ 三种格式正确，浮点不留 6 位尾数，inf/nan 可显示")
     }
 
     @TestCase

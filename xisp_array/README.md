@@ -29,7 +29,44 @@ dtype / shape / strides / 广播 / 视图 / 基础归约。
 (type-of (cangjie::array [1]))        ; "ndarray"
 ```
 
-**还没有算术与广播** —— `(+ arr arr)` 要等阶段 2，它阻塞在 core 侧的算术能力接口上。
+## 算术、归约与数学（阶段 2）
+
+**不注册新符号** —— 复用 core 的同名内建，靠能力接口分派：
+
+| 用法 | 分派接口 |
+|---|---|
+| `(+ arr arr)` / `(* arr 2)` / `(- 10 arr)` | `LispExternalArithmetic` |
+| `(sum arr)` / `(max arr)` / `(product arr)` / `(min arr)` | `LispExternalReducible` |
+| `(sin arr)` / `(sqrt arr)` / `(abs arr)` / `(floor arr)` | `LispExternalElementwise` |
+
+```lisp
+(+ (cangjie::array [1 2 3]) 10)                          ; #<ndarray int64 [11 12 13]>
+(+ (cangjie::array [[1] [2]]) (cangjie::array [[3 4]]))  ; #<ndarray int64 [[4 5] [5 6]]>
+(sum (cangjie::array [1 2 3 4]))                         ; 10
+(sin (cangjie::array [0.0]))                             ; #<ndarray float64 [0.0]>
+(floor (cangjie::array [3.7 -3.2]))                      ; #<ndarray int64 [3 -4]>
+```
+
+### 广播
+
+NumPy 规则，**从尾部维度对齐**：
+
+| a | b | 结果 |
+|---|---|---|
+| `[2,3]` | `[3]` | `[2,3]` |
+| `[3,1]` | `[1,4]` | `[3,4]` |
+| `[2,3]` | `[2]` | **不兼容** → `TypeError` |
+
+零拷贝：被广播的维度把 **stride 置 0**，同一份数据在逻辑上重复，不复制。
+
+### 类型规则
+
+- 任一方 `float64` → 结果 `float64`；都是 `int64` → `int64`
+- **除法恒 `float64`**（与 core 的 `(/ 1 2)` => `0.5` 一致）
+- **`bool` 不参与算术** → `TypeError`（`#t + 1` 没有公认答案，隐式转 1 会把写错伪装成算出来）
+- `floor` / `ceil` 结果转 `int64`；`abs` / `sign` 保留入参 dtype
+- 定义域外返回 `nan` / `-inf` 而不是报错（与 core 的标量版本一致）
+- **空数组归约一律拒绝** —— `sum` 空数组给 0 会让「文件读空了」伪装成正常结果
 
 ## 布局与视图
 
