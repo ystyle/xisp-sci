@@ -84,6 +84,9 @@ def is_publishable(dirname, pkg):
 # 注意：`[ffi.c]` + `link-option` 这类配置**不会**随 workspace 根生效，必须每个成员各自声明。
 NATIVE_ALLOWED = {
     "xisp_linalg_blas",   # 可选：foreign 调系统 BLAS（cblas_dgemm），不装则退回纯仓颉
+    # bench 是基准程序（不发布）：它要复现 BLAS 的端到端对比，所以也得链 BLAS。
+    # link-option 不随依赖传递 —— 每个最终可执行程序必须自己声明。
+    "bench",
 }
 
 cjc_versions = {}

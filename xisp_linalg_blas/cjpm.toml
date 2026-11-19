@@ -3,14 +3,16 @@
   name = "xisp_linalg_blas"
   organization = "ystyle"
   description = "星枢科学计算的可选 BLAS 加速后端（零 C 代码，纯 foreign 调系统 BLAS）"
-  version = "0.3.0"
+  version = "0.3.1"
   output-type = "static"
   compile-option = "-O2 -Woff unused"
   override-compile-option = ""
-  # Linux：-lblas（libblas.so.3 由发行版提供，如 Debian 的 libblas3 包）
+  # Linux：-lcblas -lblas
+  #   cblas_dgemm 在 libcblas 里（C 接口），libblas 里只有 dgemm_（Fortran 接口）。
+  #   两者由发行版分成不同的包/库，只写 -lblas 会报 undefined reference to cblas_dgemm。
   # macOS：换成 "-framework Accelerate"（系统自带，且经过 Apple 优化）
   # Windows：需要自己装 OpenBLAS 并改成对应路径
-  link-option = "-lblas"
+  link-option = "-lcblas -lblas"
   include = ["/src"]
   license = ["MIT"]
   authors = ["ystyle"]
@@ -18,5 +20,5 @@
 
 [dependencies]
   "ystyle::xisp" = "0.9.2"
-  "ystyle::xisp_array" = "0.3.0"
-  "ystyle::xisp_linalg" = "0.3.0"
+  "ystyle::xisp_array" = "0.3.1"
+  "ystyle::xisp_linalg" = "0.3.1"
