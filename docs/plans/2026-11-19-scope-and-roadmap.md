@@ -159,26 +159,39 @@
 
 每阶段给出**目标 / 内容 / 前置 / 验收 / 明确不做**。验收必须可测，否则不是验收。
 
-### 阶段 1：地基（当前）
+### 阶段 1：地基（✅ 已完成 2026-11-19，随 0.1.0 发布）
 
 **目标**：数组能被创建、观察、切片，且切片是零拷贝视图。
 
-| 内容 | 说明 |
-|---|---|
-| `NDArray` 表示 | dtype（Int64 / Float64 / Bool）、shape、strides、共享缓冲 |
-| 构造 | Lisp 字面量 `[[1 2] [3 4]]`、`zeros` / `ones` / `arange` |
-| 形状操作 | `shape` / `reshape` / `transpose` |
-| 视图 | `slice`（零拷贝，共享缓冲） |
-| 观察 | `print` / `type-of` / `length` / `nth` |
+| 内容 | 说明 | 落点 |
+|---|---|---|
+| `NDArray` 表示 | dtype（Int64 / Float64 / Bool）、shape、strides、共享缓冲 | `ndarray.cj` |
+| 构造 | 嵌套列表（`[[1 2] [3 4]]`）、`zeros` / `ones` / `arange` | `convert.cj` / `views.cj` |
+| 形状操作 | `reshape`（含 `-1` 推断）/ `transpose` / `shape` | `views.cj` |
+| 视图 | `slice`（沿第 0 维，零拷贝） | `views.cj` |
+| 观察 | `display`（截断）/ `type-of` / `length` / `nth` | `ndarray.cj` |
+
+**符号**（9 个，全部 `cangjie::` 命名空间）：
+`array` / `zeros` / `ones` / `arange` / `shape` / `reshape` / `transpose` / `slice` / `ndarray?`
 
 **前置**：无（全部在本仓内 + core 已有的 `External` 接口）。
 
-**验收**：
-- `(shape (zeros 3 4))` → `[3 4]`
-- `(length (zeros 3 4))` → `12`（接口约定：总元素数）
-- 修改视图会影响原数组（证明零拷贝）
-- `reshape` / `transpose` 不改变底层缓冲的地址
-- 大数组的 `print` 截断，不打印全部（`LispExternal.display()` 的接口约定）
+**验收**（39 个用例，25 白盒 + 14 契约三后端差分）：
+- ✅ `(cangjie::shape (cangjie::zeros 2 3))` → `(2 3)`
+- ✅ `(length arr)` → 总元素数；`(nth arr i)` 按行优先扁平取值
+- ✅ 修改原数组缓冲，切片视图立刻看到（零拷贝，白盒验证）
+- ✅ `reshape` / `transpose` 共享缓冲；非连续数组 `reshape` 先连续化
+- ✅ 2000 元素的显示被截断（不打印全部）
+- ✅ 六类错误都归为 `TypeError`
+
+**实现时踩到的坑**（已补用例钉住）：
+- `arange` 的计数不能直接对 `span/step` 取整：`1.0/0.1` 在浮点下是
+  `10.000000000000002`，`ceil` 会得到 11；而 `0.9999999999999999` 又少一个。
+  做法是先判断商离整数有多近（容差 1e-9），近就取整，否则才向上取整。
+  `arange(0, 1, 0.1)` 少一个元素会让后续统计全部错位。
+- 显示浮点不能直接用 `Float64.toString()`（固定 6 位小数，`2.5` → `"2.500000"`），
+  要去尾 0 并对整值补 `.0`。这与 `json-dump` 用 `.17g` 保真是**故意不同**的：
+  那个是为了数据往返不失真，这个是给人看的。
 
 **不做**：任何算术、任何广播、任何数学函数。
 
@@ -279,9 +292,10 @@
 | S2 | 数组是否要 core 专用 `Array` 变体（A 只加 `External` / B 加变体 / C 实现进 core） | 沿用 xisp 仓分族文档的结论：**C 明确不推荐**；A 与 B 判据是「JIT 是否为数组特化」。当前倾向 **A**，因为阶段 1 完全不需要变体 |
 | S3 | 仓库 / workspace 划分 | **已定：独立仓 + 独立 workspace**（即本仓） |
 | S4 | `linalg` / `signal` 的性能后端：纯仓颉 / 独立加速模块 / 同模块运行时探测 | 倾向 **先纯仓颉**。cjpm 没有可选依赖，三选一里只有「纯仓颉」不破坏零依赖假设 |
-| S5 | 符号命名策略：命名空间还是前缀 | 待定。数组族会引入 `shape` / `mean` / `fft` 等大量顶层符号，与 core 重名风险高 |
-| **S8** | 默认布局：行优先（C 序）还是列优先（Fortran/BLAS 序） | 倾向 **行优先**。`[[1 2] [3 4]]` 的字面量直觉是行优先，用户心智更接近 NumPy；与 BLAS 对接时在 `linalg` 层转置。strides 通用化后这只是默认值的选择，不是能力限制 |
+| S5 | 符号命名策略：命名空间还是前缀 | **✅ 已定（阶段 1）：`cangjie::` 命名空间前缀**。与 `cangjie::json-get` / `cangjie::http-get` / `cangjie::httpd-listen` 一致；`shape` / `slice` / `transform` 这类通用名与 core 的碰撞风险是实打实的。宿主若想要裸名，在 Lisp 层 `(define shape cangjie::shape)` 即可 —— 别名该由使用方定义，不该由库抢注 |
+| **S8** | 默认布局：行优先（C 序）还是列优先（Fortran/BLAS 序） | **✅ 已定（阶段 1）：行优先**。`[[1 2] [3 4]]` 的字面量直觉就是行优先，用户心智更接近 NumPy；与 BLAS 对接时在 `linalg` 层转置。strides 通用化后这只是默认值的选择，不是能力限制 |
 | **S9** | `xisp_io` 与 `xisp_json` 的关系 | 倾向**复用不重写**：JSON 已有独立仓 `xisp_json`，`io` 只做 CSV / 二进制，JSON 通过依赖它而不是自己实现 |
+| **S10** | 数组字面量：要不要让 `[...]` 直接产生 ndarray | **倾向不改**。`[...]` 在 xisp 里展开成 `(cangjie::vector ...)` → 列表，是既有契约；装一个域就改变语言字面量的含义，会让所有既有 `[...]` 代码变行为。要数组就显式写 `(cangjie::array [...])` |
 
 ---
 

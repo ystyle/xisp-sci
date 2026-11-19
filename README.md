@@ -3,9 +3,12 @@
 [星枢（xisp）](https://gitcode.com/ystyle/xisp) 的科学计算扩展——NDArray 与建立在它之上的
 线性代数 / 统计 / 信号处理。
 
-**当前状态：骨架**。本仓只落结构（独立 workspace、对 `ystyle::xisp` 的依赖接缝、发布配置与
-CI 闸门），`xisp_array` 目前只有域声明、没有符号。数组的函数面在
-[`docs/plans/`](docs/plans/) 定稿后填入。
+**当前状态：数组地基可用**（阶段 1 完成）。`xisp_array` 提供 9 个符号：构造
+（`array` / `zeros` / `ones` / `arange`）、形状（`shape` / `reshape` / `transpose`）、
+视图（`slice`）与谓词（`ndarray?`）。切片是零拷贝视图，`length` / `nth` / `type-of` 由
+core 通过能力接口分派，不在域里重复注册。
+
+**还没有算术** —— `(+ arr arr)` 要等阶段 2，它阻塞在 core 侧的算术能力接口上（见路线图 §4.2）。
 
 ## 为什么是独立的仓库 / workspace
 

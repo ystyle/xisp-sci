@@ -28,8 +28,8 @@ class ArrayDomainTest {
         if (d.name != "array") {
             @Fail("域名应为 array，实际 `${d.name}`")
         }
-        if (d.symbols.size != 0) {
-            @Fail("骨架阶段符号清单应为空，实际 ${d.symbols.size} 个：${d.symbols}")
+        if (d.symbols.size != 9) {
+            @Fail("符号清单应有 9 个，实际 ${d.symbols.size} 个：${d.symbols}")
         }
         // 数组运算不执行宿主传入的代码 → 不逃逸；这条决定它能否进 PRESET_PURE
         if (d.escapable) {
@@ -38,7 +38,7 @@ class ArrayDomainTest {
         if (d.hostPolicy) {
             @Fail("array 域声明为 hostPolicy，但纯计算不触及宿主资源")
         }
-        println("✓ name=array / symbols 空 / escapable=false / hostPolicy=false")
+        println("✓ name=array / 9 个符号 / escapable=false / hostPolicy=false")
     }
 
     /**
