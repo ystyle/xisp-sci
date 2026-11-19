@@ -18,3 +18,5 @@
   "ystyle::xisp_sci" = "0.3.0"
   # 直接构造 ndarray 注入解释器（Matrix Market 基准用）
   "ystyle::xisp_array" = "0.3.0"
+  # 三后端性能对比需要 withBytecodeCompiler / withJit
+  "ystyle::xisp_bc" = "0.9.2"

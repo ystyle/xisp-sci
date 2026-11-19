@@ -379,6 +379,11 @@ main() {
     log("\n## 八、图表数据")
     chartData()
 
+    log("\n## 九、三个后端对比")
+    backendComparison()
+    backendLimits()
+    backendOverhead()
+
     log("\n## 六、编译优化开关的影响（A/B 实测）")
     log("")
     log("同一个 `matmul`，只把 `xisp_linalg` 的 `compile-option` 从 `\"-O2 -Woff unused\"`")
