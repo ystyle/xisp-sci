@@ -15,6 +15,7 @@ set -u
 cd "$(dirname "$0")/.."
 
 python3 - <<'PY'
+import os
 import sys, os, glob, tomllib
 
 fail = []
@@ -39,9 +40,37 @@ if not members:
     print("错误: 没找到任何成员 cjpm.toml", file=sys.stderr)
     sys.exit(2)
 
-# 约定：测试包与示例包不发布
+# 从 workspace.toml 读 [workspace.publish] exclude —— 那份清单是发布范围的单一来源，
+# 脚本不能自己另立一套判据（否则改了 workspace.toml 闸门还按老规矩报错）。
+def load_publish_exclude():
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "workspace.toml")
+    excluded = set()
+    if not os.path.exists(path):
+        return excluded
+    in_publish = False
+    for line in open(path, encoding="utf-8"):
+        t = line.strip()
+        if t.startswith("[") and t.endswith("]"):
+            in_publish = (t == "[workspace.publish]")
+            continue
+        if in_publish and t.startswith("exclude"):
+            _, val = t.split("=", 1)
+            for item in val.strip().strip("[]").split(","):
+                it = item.strip().strip('"\'')
+                if it:
+                    excluded.add(it)
+    return excluded
+
+
+PUBLISH_EXCLUDE = load_publish_exclude()
+
+
+# 约定：测试包与示例包不发布；workspace.toml 的 exclude 里列出的也不发布
 def is_publishable(dirname, pkg):
     name = pkg.get("name", dirname)
+    if dirname in PUBLISH_EXCLUDE or name in PUBLISH_EXCLUDE:
+        return False
     return not (name.endswith("_tests") or name.endswith("_examples"))
 
 # 允许出现平台相关配置（C 库 / stdx / bin-dependencies 等）的成员白名单。
