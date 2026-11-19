@@ -15,7 +15,8 @@ import std.collection.ArrayList
 
 let LINALG_SYMBOLS: Array<String> = [
     "cangjie::matmul", "cangjie::trace", "cangjie::det", "cangjie::solve",
-    "cangjie::inv", "cangjie::cholesky", "cangjie::lu", "cangjie::qr"]
+    "cangjie::inv", "cangjie::cholesky", "cangjie::lu", "cangjie::qr",
+    "cangjie::lstsq"]
 
 public func linalgDomain(): LispCapability {
     SimpleCapability(
@@ -97,6 +98,14 @@ func registerLinalg(env: Environment): Unit {
         guardedLinalg({ =>
             arity(args, 1, "cangjie::qr")
             qrLispOf(args[0])
+        })
+    }))
+
+    // (cangjie::lstsq X y) —— 最小二乘（多元线性回归的地基）
+    env.define("cangjie::lstsq", NativeFunc({ args =>
+        guardedLinalg({ =>
+            arity(args, 2, "cangjie::lstsq")
+            lstsqLisp(args[0], args[1])
         })
     }))
 }

@@ -14,6 +14,7 @@
 (cangjie::cholesky A)                        ; 对称正定 → L（A = L Lᵀ）
 (cangjie::lu A)                              ; {"l": …, "u": …, "p": …}（P A = L U）
 (cangjie::qr A)                              ; {"q": …, "r": …}（Q R = A）
+(cangjie::lstsq X y)                         ; 最小二乘，多元线性回归的地基
 ```
 
 ## `matmul` 的维度组合
@@ -47,6 +48,13 @@
 
 **QR 用 Householder 反射**，不是 Gram-Schmidt —— 古典 Gram-Schmidt 在近乎线性相关的列上
 会严重丢失正交性。
+
+**`lstsq` 走 QR 而不是正规方程**。正规方程把条件数平方（`cond(XᵀX) = cond(X)²`），
+一个条件数 1e6 的设计矩阵直接变成 1e12，多精度就全丢了。QR 只把 `Qᵀy` 的前 n 个分量
+回代，不显式求逆。
+
+秩亏（特征线性相关）时**报错**而不是给出某个"解" —— 系数不唯一时静默返回一个答案，
+会让用户以为找到了唯一答案。
 
 ## 许可
 

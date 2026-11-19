@@ -349,10 +349,14 @@ func luLispOf(av: LispValue): LispValue {
  * `Q` 是 `m×m` 正交矩阵，`R` 是 `m×n` 上三角。用 Householder 反射而不是
  * Gram-Schmidt：古典 Gram-Schmidt 在近乎线性相关的列上会严重丢正交性。
  */
-func qrLispOf(av: LispValue): LispValue {
-    let (m, n, a) = toMatrix(av, "cangjie::qr")
+/**
+ * Householder QR 分解：返回 `(Q, R)`
+ *
+ * `Q` 是 `m×m` 正交矩阵，`R` 是 `m×n` 上三角。用 Householder 反射而不是
+ * Gram-Schmidt：古典 Gram-Schmidt 在近乎线性相关的列上会严重丢正交性。
+ */
+func qrRaw(m: Int64, n: Int64, a: Array<Float64>): (Array<Float64>, Array<Float64>) {
     let r = a.clone()
-    // Q 初始为单位阵，逐个左乘 Householder 反射
     let q = Array<Float64>(m * m, repeat: 0.0)
     var i: Int64 = 0
     while (i < m) {
@@ -362,7 +366,6 @@ func qrLispOf(av: LispValue): LispValue {
     var k: Int64 = 0
     let steps = if (m < n) { m } else { n }
     while (k < steps) {
-        // 取第 k 列从第 k 行往下的向量
         var norm = 0.0
         i = k
         while (i < m) {
@@ -376,7 +379,6 @@ func qrLispOf(av: LispValue): LispValue {
             continue
         }
         let alpha = if (r[k * n + k] >= 0.0) { -norm } else { norm }
-        // v = x - alpha * e1
         let v = Array<Float64>(m, repeat: 0.0)
         i = k
         while (i < m) {
@@ -394,7 +396,6 @@ func qrLispOf(av: LispValue): LispValue {
             k++
             continue
         }
-        // R = H R，其中 H = I - 2 v vᵀ / (vᵀv)
         var j: Int64 = k
         while (j < n) {
             var dot = 0.0
@@ -411,7 +412,6 @@ func qrLispOf(av: LispValue): LispValue {
             }
             j++
         }
-        // Q = Q H（H 对称，所以右乘等于左乘同一反射）
         j = 0
         while (j < m) {
             var dot = 0.0
@@ -442,6 +442,80 @@ func qrLispOf(av: LispValue): LispValue {
         }
         i++
     }
+    (q, r)
+}
+
+/**
+ * `(cangjie::lstsq X y)` —— 最小二乘
+ *
+ * 解 `min ‖X b − y‖`。用 QR：`X = QR` 时 `b = R⁻¹ Qᵀ y`，
+ * 只取 `Qᵀy` 的前 n 个分量回代 —— 不显式求 `XᵀX` 的逆。
+ *
+ * **这是相对正规方程的关键优势**：正规方程把条件数平方（`cond(XᵀX) = cond(X)²`），
+ * 一个条件数 1e6 的设计矩阵直接变成 1e12，多精度就全丢了。
+ *
+ * `X` 是 `(m, n)`，`y` 是 `(m,)`，返回 `b`（`n` 维）。
+ */
+func lstsqLisp(xv: LispValue, yv: LispValue): LispValue {
+    let (m, n, x) = toMatrix(xv, "cangjie::lstsq")
+    if (m < n) {
+        throw IllegalArgumentException(
+            "lstsq：样本数 ${m} 少于特征数 ${n}，方程欠定")
+    }
+    let y = match (yv) {
+        case External(e) => match (e) {
+            case a: NDArray =>
+                let arr = a.copy()
+                if (arr.shape.size == 2 && arr.shape[1] != 1) {
+                    throw IllegalArgumentException("lstsq：y 必须是向量或单列矩阵")
+                }
+                flattenFloats(arr, "cangjie::lstsq")
+            case _ => throw IllegalArgumentException("lstsq 的 y 需要 ndarray")
+        }
+        case _ => throw IllegalArgumentException("lstsq 的 y 需要 ndarray")
+    }
+    if (y.size != m) {
+        throw IllegalArgumentException(
+            "lstsq：X 有 ${m} 行但 y 有 ${y.size} 个元素")
+    }
+    let (q, r) = qrRaw(m, n, x)
+    // Qᵀ y（取前 n 个）
+    let qty = Array<Float64>(n, repeat: 0.0)
+    var j: Int64 = 0
+    while (j < n) {
+        var s = 0.0
+        var i: Int64 = 0
+        while (i < m) {
+            s = s + q[i * m + j] * y[i]
+            i++
+        }
+        qty[j] = s
+        j++
+    }
+    // 回代解 R[0..n, 0..n] b = qty
+    let b = Array<Float64>(n, repeat: 0.0)
+    var k = n - 1
+    while (k >= 0) {
+        let diag = r[k * n + k]
+        if (abs(diag) <= linalgEps(x)) {
+            throw IllegalArgumentException(
+                "lstsq：设计矩阵秩亏（第 ${k} 个对角元为 ${diag}），特征之间线性相关")
+        }
+        var s = qty[k]
+        var j2 = k + 1
+        while (j2 < n) {
+            s = s - r[k * n + j2] * b[j2]
+            j2++
+        }
+        b[k] = s / diag
+        k--
+    }
+    LispValue.External(ndarrayFromFloats(b))
+}
+
+func qrLispOf(av: LispValue): LispValue {
+    let (m, n, a) = toMatrix(av, "cangjie::qr")
+    let (q, r) = qrRaw(m, n, a)
     let out = HashMap<String, LispValue>()
     out.add("q", LispValue.External(matrixToArray(m, m, q)))
     out.add("r", LispValue.External(matrixToArray(m, n, r)))
