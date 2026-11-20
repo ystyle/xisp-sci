@@ -64,13 +64,18 @@
 | `[` `[[` 下标与切片 | `slice` | ✅ |
 | `seq` `rep` | `arange` | ✅ |
 | `%*%` `crossprod` `outer` | `matmul`（+ `transpose` 可拼） | ✅ |
-| `sort` `order` `rank` `unique` `rev` | —— | ❌ |
-| `cumsum` `cumprod` `diff` | —— | ❌ |
+| `sort` `order` | `cangjie::sort` / `sort-desc` / `order` | ✅ |
+| `rank`（统计秩） | `cangjie::ranks`（并列取平均秩） | ✅ |
+| `cumsum` `cumprod` | `cangjie::cumsum` / `cumprod` | ✅ |
+| `unique` `rev` `diff` | —— | ❌ |
 | `apply` `sapply` `lapply` `tapply` | `group-agg` 覆盖了聚合这一支 | ⚠️ |
 | `subset` `with` `within` | —— | 🚫 数据框语义，不是算数 |
 
-**判断**：`sort` / `order` / `rank` 是**真缺口**，而且便宜 —— 它们是排序与秩，纯数组操作。
-`cumsum` / `cumprod` 同理。这几项在「拿着一列数据做探索」时几乎必然用到。
+**已于 2026-11-20 补齐** `sort` / `sort-desc` / `order` / `cumsum` / `cumprod` / `ranks`。
+`ranks` 叫复数形式是因为 `cangjie::rank` 已被矩阵秩占用（`xisp_linalg`），
+而矩阵秩先发布，改名的代价更大 —— 统计的秩返回的是一个数组，复数形式反而更贴切。
+
+`unique` / `rev` / `diff` 仍然缺，但都便宜，等真有需求再说。
 
 ### 3.2 描述统计
 
@@ -79,7 +84,8 @@
 | `mean` `median` `sd` `var` | `mean` `median` `std` `var` `std-pop` | ✅ |
 | `cov` `cor` | `cov` `corr` `corr-matrix` | ✅ |
 | `quantile` `fivenum` `summary` | `quantile` `five-num` | ✅ |
-| `min` `max` `range` `mad` | `min` `max`（nan-aware） | ⚠️ 缺 `range` `mad` |
+| `mad` `range` | `cangjie::mad` / `range` | ✅ |
+| `min` `max` | `min` `max`（nan-aware） | ✅ |
 | `sum` `prod` | core 的 `sum` / `product` | ✅ |
 | `table` `xtabs`（列联表） | `group-by` 可拼出等价物 | ⚠️ |
 | `summary`（一体化） | —— | ❌ |
@@ -135,23 +141,29 @@ R 的 `d/p/q/r` 四前缀体系是统计计算的地基：**密度 / 累积 / �
 | R | xisp-sci | |
 |---|---|---|
 | `t.test` | `t-test1` `t-test2` | ✅ |
-| `wilcox.test`（秩和 / 符号秩） | —— | ❌ |
-| `chisq.test` | —— | ❌ |
-| `fisher.test` | —— | ❌ |
+| `wilcox.test`（秩和） | `wilcox-test`（精确 + 正态近似） | ✅ |
+| `chisq.test`（拟合优度 / 独立性） | `chisq-test`（两种形态） | ✅ |
+| `cor.test`（相关显著性） | `cor-test` | ✅ |
+| `aov` `anova` | `anova`（单因素） | ✅ |
+| `wilcox.test`（**符号秩**，配对样本） | —— | ❌ |
+| `fisher.test`（精确列联表） | —— | ❌ |
 | `ks.test`（K-S 拟合优度） | —— | ❌ |
 | `shapiro.test`（正态性） | —— | ❌ |
 | `var.test`（方差齐性） | —— | ❌ |
 | `prop.test` `binom.test`（比例） | —— | ❌ |
-| `cor.test`（相关显著性） | —— | ❌ |
-| `aov` `anova` `kruskal.test` `friedman.test` | —— | ❌ |
+| `kruskal.test` `friedman.test` | —— | ❌ |
 | `bartlett.test` `fligner.test` `ansari.test` `mood.test` | —— | ❌ |
 | `pairwise.t.test` `power.t.test` | —— | ❌ |
 
-**判断**：`t.test` 一个孤零零地立着。这不是「还差几个检验」的问题 —— 缺的是**检验的通用形状**：
-每个检验都产出一个统计量，再经对应分布的 `p*` 转成 p 值。§3.3 补上之后，
-这里的每一个都是「算统计量 + 查一次 CDF」，成本远低于现在看起来的样子。
+**判断**（补之前写的）：`t.test` 一个孤零零地立着。这不是「还差几个检验」的问题 ——
+缺的是**检验的通用形状**：每个检验都产出一个统计量，再经对应分布的 `p*` 转成 p 值。
+§3.3 补上之后，这里的每一个都是「算统计量 + 查一次 CDF」。
 
-`cor.test` 尤其值得补：已经有了 `corr` 和 `cov`，却没法回答「这个 r 显著吗」。
+**这个预测被证实了**：2026-11-20 补了 `cor-test` / `chisq-test` / `wilcox-test` / `anova`
+四个，代码量只有 t 检验那套的三分之一 —— 因为分布的尾部概率不用再自己算。
+
+剩下的（paired 符号秩、fisher、ks、shapiro、var、比例、kruskal、friedman）同理，
+缺的是动机而不是难度。
 
 ### 3.5 回归与建模
 
