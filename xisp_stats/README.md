@@ -34,6 +34,12 @@
 | `cangjie::ci` | 均值置信区间 → `{lo, hi, mean, se, df, tcrit}` |
 | `cangjie::five-num` | 箱线图数据（五数概括 + 离群点） |
 | `cangjie::corr-matrix` | 相关矩阵（热力图数据） |
+| `cangjie::cor-test` | 相关显著性检验 → `{r, t, df, p, n}` |
+| `cangjie::chisq-test` | 卡方检验（拟合优度 / 列联表独立性） |
+| `cangjie::wilcox-test` | Wilcoxon 秩和（Mann-Whitney U） |
+| `cangjie::anova` | 单因素方差分析 → `{f, df1, df2, p, …}` |
+| `cangjie::mad` | 中位数绝对偏差（稳健版的方差） |
+| `cangjie::range` | 极差 `max − min` |
 | `cangjie::norm-pdf` / `norm-cdf` / `norm-quantile` | 正态 `N(μ, σ²)` |
 | `cangjie::t-pdf` / `t-cdf` / `t-quantile` | Student t |
 | `cangjie::chisq-pdf` / `chisq-cdf` / `chisq-quantile` | 卡方 |
@@ -96,6 +102,66 @@
 Gamma 函数用 Lanczos 近似、不完全 Beta 用连分式 + Lentz 算法、分位数用二分反解。
 验证方式是拿**教科书 t 分位数表**逐个对（df=1 → 12.706、df=30 → 2.042），
 容差 1e-3 全过。
+
+## 更多检验
+
+```lisp
+(cangjie::cor-test x y)                 ; → {r, t, df, p, n}
+(cangjie::chisq-test observed expected) ; 拟合优度
+(cangjie::chisq-test table)             ; 列联表独立性（table 是二维矩阵）
+(cangjie::wilcox-test x y)              ; → {u, w, p, n1, n2, method}
+(cangjie::anova g1 g2 g3)               ; → {f, df1, df2, p, ss-between, ss-within}
+```
+
+### `cor-test` 为什么必要
+
+`corr` 给出一个 0 到 1 之间的数，但「0.35 算强还是弱」完全取决于样本量：
+20 个样本的 0.35 大概率是噪声，2000 个样本的 0.35 几乎一定是真的。
+`cor-test` 回答的是后者。
+
+### `chisq-test` 的两种形态
+
+传一个参数时看形状：**二维矩阵 = 列联表独立性检验**，**一维数组 = 拟合优度**
+（不传期望就假设均匀分布）。传两个参数则是指定期望的拟合优度。
+
+用参数个数 + 形状区分形态，而不是拆成两个符号 —— R 的 `chisq.test` 也是这么做的，
+因为这两件事本质上是同一个统计量的两种用法。
+
+### `wilcox-test`：精确还是近似
+
+与 t 检验的区别是它**不假设正态**：只看两组混在一起后谁排在前面。对偏态数据、
+序数数据、含离群点的数据，它比 t 检验可靠得多。
+
+- **无并列且 `n1·n2 ≤ 1600`**：用**精确零分布**（`method = "exact"`）
+- **有并列**：精确分布不再适用，退回正态近似 + 并列校正（`method = "normal-approx-ties"`）
+- **样本更大**：正态近似（`method = "normal-approx"`）
+
+精确分布的方案数随样本量组合爆炸，`30×30` 已经是三百多万种 —— 而正态近似在
+`n > 20` 时误差已经小于 1%。
+
+**离散分布的 p 值不会等于 1**。完全交错的两组（U 正好落在平衡点）也会给
+`p = 0.7` 而不是 1，因为精确分布是离散的。这不是 bug。
+
+### `anova` 而不是多次 t 检验
+
+k 组两两比较有 `k(k−1)/2` 对，每对都有 5% 的假阳性率。6 组就是 15 对，
+「至少有一对碰巧显著」的概率约 **54%**。ANOVA 用一个 F 值一次回答
+「这些组的均值是不是都一样」，把整体错误率控制在设定水平。
+
+两组时 `F = t²` —— 两条完全不同的代码路径给出自洽的结果。
+
+### `mad` 与 `range`
+
+```lisp
+(cangjie::mad [1 2 3 4 5])   ; → 1.0
+(cangjie::range [1 5 3])     ; → 4.0
+```
+
+`mad` 是**稳健版的方差**：标准差用平方，一个离群点就能把它拉爆；MAD 用中位数，
+一半数据变动才会有明显反应。
+
+R 的 `mad()` 默认还乘 1.4826 让它与正态下的 σ 可比，**这里不乘** ——
+乘了以后它就既不是 MAD 也不是 σ，只是那个系数的产品。需要与 σ 比较时自己乘。
 
 ## 分布函数
 
