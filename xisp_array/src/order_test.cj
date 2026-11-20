@@ -180,3 +180,57 @@ class RanksTest {
         }
     }
 }
+
+@Test
+class SequenceToolsTest {
+    /** 反转 */
+    @TestCase
+    func testRev() {
+        println("\n=== 反转 ===")
+        expectArrEq(reverseRaw([1.0, 2.0, 3.0, 4.0]), [4.0, 3.0, 2.0, 1.0], "rev")
+        expectArrEq(reverseRaw([7.0]), [7.0], "单元素")
+        expectArrEq(reverseRaw(Array<Float64>(0, repeat: 0.0)), Array<Float64>(0, repeat: 0.0), "空")
+        // 反转两次回到原样
+        let v = [3.0, 1.0, 4.0, 1.0, 5.0]
+        expectArrEq(reverseRaw(reverseRaw(v, ), ), v, "两次反转")
+    }
+
+    /**
+     * 去重：**保持首次出现的顺序**
+     *
+     * 排序去重会破坏顺序，而调用方通常正是靠这个顺序做事。
+     */
+    @TestCase
+    func testUnique() {
+        println("\n=== 去重（保序）===")
+        expectArrEq(uniqueRaw([3.0, 1.0, 3.0, 2.0, 1.0]), [3.0, 1.0, 2.0], "保序去重")
+        expectArrEq(uniqueRaw([1.0, 1.0, 1.0]), [1.0], "全相同")
+        expectArrEq(uniqueRaw(Array<Float64>(0, repeat: 0.0)), Array<Float64>(0, repeat: 0.0), "空")
+    }
+
+    /** 多个 NaN 只保留一个（R 的 `unique(c(NA, NA))` 行为） */
+    @TestCase
+    func testUniqueNaN() {
+        println("\n=== 去重里的 NaN ===")
+        let r = uniqueRaw([1.0, Float64.getNaN(), 2.0, Float64.getNaN()])
+        if (r.size != 3) {
+            @Fail("多个 NaN 应合并成一个，实际留下 ${r.size} 个元素")
+        }
+        if (!(r[1] != r[1])) {
+            @Fail("第二个元素应为 NaN，实际 ${r[1]}")
+        }
+    }
+
+    /** 相邻差分 */
+    @TestCase
+    func testDiff() {
+        println("\n=== 相邻差分 ===")
+        expectArrEq(diffRaw([1.0, 3.0, 6.0, 10.0]), [2.0, 3.0, 4.0], "diff")
+        expectArrEq(diffRaw([5.0]), Array<Float64>(0, repeat: 0.0), "单元素→空")
+        expectArrEq(diffRaw(Array<Float64>(0, repeat: 0.0)), Array<Float64>(0, repeat: 0.0), "空→空")
+        // 累积和的差分回到原序列（去掉首项）
+        let v = [1.0, 2.0, 3.0, 4.0]
+        // cumsum = [1,3,6,10]，diff(cumsum) = [2,3,4] = v[1..]
+        expectArrEq(diffRaw(cumsumRaw(v)), [2.0, 3.0, 4.0], "diff ∘ cumsum")
+    }
+}

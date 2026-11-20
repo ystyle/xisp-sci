@@ -23,7 +23,8 @@ public func arrayDomain(): LispCapability {
          "cangjie::ndarray?",
          // 排序与累积归约（order.cj）
          "cangjie::sort", "cangjie::sort-desc", "cangjie::order",
-         "cangjie::cumsum", "cangjie::cumprod", "cangjie::ranks"],
+         "cangjie::cumsum", "cangjie::cumprod", "cangjie::ranks",
+         "cangjie::rev", "cangjie::unique", "cangjie::diff"],
         { ctx => registerArray(ctx.env) },
         // 数组运算不执行宿主传入的代码：不逃逸，可以进 PRESET_PURE。
         // 将来若加入"对每个元素调用 Lisp 函数"这类高阶操作（如 array-map），

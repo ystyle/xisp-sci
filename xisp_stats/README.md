@@ -40,6 +40,15 @@
 | `cangjie::anova` | 单因素方差分析 → `{f, df1, df2, p, …}` |
 | `cangjie::mad` | 中位数绝对偏差（稳健版的方差） |
 | `cangjie::range` | 极差 `max − min` |
+| `cangjie::var-test` | 两样本方差比（F 检验） |
+| `cangjie::binom-test` | 单样本比例（**精确**二项） |
+| `cangjie::prop-test` | 两样本比例（正态近似 + 连续性校正） |
+| `cangjie::signed-rank-test` | 配对符号秩（Wilcoxon signed-rank） |
+| `cangjie::kruskal-test` | 多组秩和（Kruskal-Wallis） |
+| `cangjie::friedman-test` | 随机区组（Friedman） |
+| `cangjie::fisher-test` | 2×2 精确列联表（Fisher） |
+| `cangjie::ks-test` | 两样本分布比较（Kolmogorov-Smirnov） |
+| `cangjie::normality-test` | 正态性（D'Agostino-Pearson） |
 | `cangjie::norm-pdf` / `norm-cdf` / `norm-quantile` | 正态 `N(μ, σ²)` |
 | `cangjie::t-pdf` / `t-cdf` / `t-quantile` | Student t |
 | `cangjie::chisq-pdf` / `chisq-cdf` / `chisq-quantile` | 卡方 |
@@ -379,6 +388,60 @@ Fisher-Yates 抽 k 个只需洗前 k 个位置。`k = n` 时前者退化成后�
 与一份独立 Python 实现逐位相同，钉在测试常量里）、**结构不变量**（排列查重、抽样互异、
 bootstrap 必有重复）、**统计性质**（矩、覆盖概率、卡方拟合优度，p 值来自 `chisq-cdf`）、
 **Lisp 层接线**（符号清单、返回类型、`TypeError`）。
+
+## 第三批检验
+
+```lisp
+(cangjie::var-test x y)                    ; 两组方差是否相同
+(cangjie::binom-test 7 10 0.5)             ; 单样本比例（精确）
+(cangjie::prop-test 45 100 30 100)         ; 两样本比例
+(cangjie::signed-rank-test before after)   ; 配对前后对比
+(cangjie::kruskal-test g1 g2 g3)           ; 多组位置（非参数 ANOVA）
+(cangjie::friedman-test table)             ; 随机区组
+(cangjie::fisher-test table)               ; 2×2 精确列联表
+(cangjie::ks-test x y)                     ; 两组分布是否相同
+(cangjie::normality-test x)                ; 这列数据像正态吗
+```
+
+### 选型
+
+| 问题 | 用什么 | 前提 |
+|---|---|---|
+| 两组方差是否相同 | `var-test` | 两组都近似**正态**（对偏离正态极敏感） |
+| 多组位置是否相同 | `anova` / `kruskal-test` | 前者要正态，后者不要 |
+| 同一对象前后对比 | `signed-rank-test` | 配对设计 |
+| 多处理 × 多区组 | `friedman-test` | 每个区组都接受全部处理 |
+| 两个分类变量是否关联 | `chisq-test` / `fisher-test` | 后者用于**任何一格期望 < 5** 的表 |
+| 两组分布是否相同（整体） | `ks-test` | 不需要正态 |
+| 这列数据像正态吗 | `normality-test` | n ≥ 8 |
+
+### `fisher-test` 什么时候必须用
+
+**任何一格期望频数 < 5 时。** 卡方近似在稀疏表上完全不可信，而 Fisher 精确检验
+在任意样本量下都成立。这也是它只能做 2×2 的原因 —— 更大的表精确计算代价爆炸。
+
+它的双侧 p 值定义是「所有**概率不大于观测表概率**的表之和」（R 的约定），
+不是「2 倍单侧」：超几何分布离散且不对称，2 倍单侧会给出大于 1 的数。
+
+### `ks-test` 与秩检验的区别
+
+秩检验只对「一组整体偏大」这类差异敏感；KS 比较的是**整条分布曲线**。
+两组中位数相同、但一组尾部厚得多时，KS 能查出来、`wilcox-test` 查不出来。
+
+p 值用渐近公式，**小样本时偏保守**（p 值偏大），不会给出假阳性。
+
+### `normality-test` 不是 Shapiro-Wilk
+
+这里用 **D'Agostino-Pearson 综合检验**（同时看偏度与峰度，`K² ~ χ²(2)`），
+不是 R 的 `shapiro.test`。理由是 Shapiro-Wilk 需要一组**依赖样本量的系数表**，
+几百个数抄错一个不会有任何提示、只会让 p 值悄悄偏掉；D'Agostino-Pearson 只要
+两个闭式公式，可以逐项核对。
+
+两者判别力相当。**代价**是与 R 的结论不逐位一致 —— 如果你的流程要和 R 对齐，
+这一点要知道。
+
+它只看前四阶矩，**查不出双峰**：一半数据在 −1 一半在 +1 的分布，偏度和峰度
+都可能和正态接近。
 
 ## 图表数据
 

@@ -3,6 +3,7 @@ package ystyle::xisp_array
 import ystyle::xisp.*
 import ystyle::xisp.types.*
 import std.collection.ArrayList
+import std.collection.HashSet
 import std.math.*
 
 /**
@@ -87,7 +88,7 @@ func mergeSortRange(a: Array<Float64>, lo: Int64, hi: Int64, desc: Bool): Unit {
 }
 
 /** 排序（NaN 一律排到末尾，不参与比较） */
-func sortRaw(values: Array<Float64>, desc: Bool): Array<Float64> {
+public func sortRaw(values: Array<Float64>, desc: Bool): Array<Float64> {
     let finite = ArrayList<Float64>()
     var nanCount: Int64 = 0
     for (x in values) {
@@ -287,6 +288,58 @@ public func ranksRaw(values: Array<Float64>): Array<Float64> {
     out
 }
 
+/** 反转 */
+func reverseRaw(values: Array<Float64>): Array<Float64> {
+    let out = Array<Float64>(values.size, repeat: 0.0)
+    var i: Int64 = 0
+    while (i < values.size) {
+        out[i] = values[values.size - 1 - i]
+        i++
+    }
+    out
+}
+
+/**
+ * 去重，**保持首次出现的顺序**（R 的 `unique` 行为）
+ *
+ * 不排序去重：`unique` 的语义是「挑出不重复的」，不是「挑出所有不同的值再排好」。
+ * 排序会把原本的顺序信息破坏掉，而调用方通常正是靠这个顺序做事。
+ *
+ * `NaN` 只保留一个：浮点比较里 `NaN != NaN`，直接放进 `HashSet` 会把每个 NaN 都
+ * 当成新值（`(unique [nan nan])` 得到两个），与 R 的 `unique(c(NA, NA))` 不一致。
+ */
+func uniqueRaw(values: Array<Float64>): Array<Float64> {
+    let out = ArrayList<Float64>()
+    let seen = HashSet<Float64>()
+    var nanSeen = false
+    for (x in values) {
+        if (x != x) {
+            if (!nanSeen) {
+                out.add(x)
+                nanSeen = true
+            }
+        } else if (!seen.contains(x)) {
+            seen.add(x)
+            out.add(x)
+        }
+    }
+    out.toArray()
+}
+
+/** 相邻差分：`diff([a,b,c]) = [b−a, c−b]`，长度比输入少 1 */
+func diffRaw(values: Array<Float64>): Array<Float64> {
+    if (values.size <= 1) {
+        return Array<Float64>(0, repeat: 0.0)
+    }
+    let out = Array<Float64>(values.size - 1, repeat: 0.0)
+    var i: Int64 = 1
+    while (i < values.size) {
+        out[i - 1] = values[i] - values[i - 1]
+        i++
+    }
+    out
+}
+
 // ───────────────────────── Lisp 接口 ─────────────────────────
 
 func registerOrder(env: Environment): Unit {
@@ -337,6 +390,36 @@ func registerOrder(env: Environment): Unit {
             let a = asNDArray(args[0], "cangjie::ranks")
             requireOneDim(a, "cangjie::ranks")
             LispValue.External(ndarrayFromFloats(ranksRaw(floatsOf(a))))
+        })
+    }))
+
+    // (cangjie::rev x) —— 反转
+    env.define("cangjie::rev", NativeFunc({ args =>
+        guarded({ =>
+            arity(args, 1, "cangjie::rev")
+            let a = asNDArray(args[0], "cangjie::rev")
+            requireOneDim(a, "cangjie::rev")
+            LispValue.External(ndarrayFromFloats(reverseRaw(floatsOf(a))))
+        })
+    }))
+
+    // (cangjie::unique x) —— 去重（保持首次出现顺序）
+    env.define("cangjie::unique", NativeFunc({ args =>
+        guarded({ =>
+            arity(args, 1, "cangjie::unique")
+            let a = asNDArray(args[0], "cangjie::unique")
+            requireOneDim(a, "cangjie::unique")
+            LispValue.External(ndarrayFromFloats(uniqueRaw(floatsOf(a))))
+        })
+    }))
+
+    // (cangjie::diff x) —— 相邻差分
+    env.define("cangjie::diff", NativeFunc({ args =>
+        guarded({ =>
+            arity(args, 1, "cangjie::diff")
+            let a = asNDArray(args[0], "cangjie::diff")
+            requireOneDim(a, "cangjie::diff")
+            LispValue.External(ndarrayFromFloats(diffRaw(floatsOf(a))))
         })
     }))
 

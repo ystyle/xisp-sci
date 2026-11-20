@@ -77,6 +77,9 @@ NumPy 规则，**从尾部维度对齐**：
 (cangjie::cumsum x)       ; 累积和
 (cangjie::cumprod x)      ; 累积积
 (cangjie::ranks x)        ; 秩（并列取平均秩）
+(cangjie::rev x)          ; 反转
+(cangjie::unique x)       ; 去重（保持首次出现顺序）
+(cangjie::diff x)         ; 相邻差分
 ```
 
 **NaN 一律排到最后**（R 的 `na.last = TRUE`）。这既是约定也避免了真 bug：
@@ -90,6 +93,10 @@ NaN 在浮点比较里既不小于也不大于任何数，直接用默认比较�
 
 **`ranks` 的并列取平均秩**（R 的 `ties.method = "average"`）：三个并列的观测
 占第 3、4、5 名，各拿 4 分，而不是「谁先出现谁拿 3」。选错会让非参数检验系统性偏。
+
+**`unique` 保持首次出现的顺序**，不是「去重后排序」—— 调用方通常正是靠这个顺序做事。
+多个 `NaN` 只保留一个（R 的 `unique(c(NA, NA))` 行为）：浮点比较里 `NaN != NaN`，
+直接塞进哈希表会把每个 NaN 都当成新值。
 
 这几个函数**只接受一维数组** —— 对矩阵没有明确定义，报错比默默 flatten 好。
 

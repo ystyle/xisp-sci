@@ -112,7 +112,7 @@ class DistributionsContractTest {
         }
         println("  stats 域共 ${declared.size} 个符号，其中分布函数 18 个")
         // 42 = 18 描述统计 + 18 分布 + 6 随机数（随机数在 rng.cj，符号清单见 rng_test.cj）
-        if (declared.size != 42) {
+        if (declared.size != 58) {
             @Fail("stats 域应有 42 个符号（18 描述统计 + 18 分布 + 6 随机数），实际 ${declared.size}")
         }
     }
