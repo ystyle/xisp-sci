@@ -3,7 +3,7 @@
   name = "xisp_array"
   organization = "ystyle"
   description = "星枢科学计算地基：NDArray 的 dtype / shape / strides / 广播 / 视图"
-  version = "0.4.0"
+  version = "0.5.0"
   output-type = "static"
   compile-option = "-O2 -Woff unused"
   override-compile-option = ""

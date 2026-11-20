@@ -3,7 +3,7 @@
   name = "xisp_stats"
   organization = "ystyle"
   description = "星枢科学计算统计：描述统计、分布函数、随机数、假设检验与图表数据"
-  version = "0.4.0"
+  version = "0.5.0"
   output-type = "static"
   compile-option = "-O2 -Woff unused"
   override-compile-option = ""
@@ -15,4 +15,4 @@
 
 [dependencies]
   "ystyle::xisp" = "0.9.2"
-  "ystyle::xisp_array" = "0.4.0"
+  "ystyle::xisp_array" = "0.5.0"
