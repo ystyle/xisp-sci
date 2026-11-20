@@ -3,7 +3,7 @@
   name = "xisp_array"
   organization = "ystyle"
   description = "星枢科学计算地基：NDArray 的 dtype / shape / strides / 广播 / 视图"
-  version = "0.5.0"
+  version = "0.5.1"
   output-type = "static"
   compile-option = "-O2 -Woff unused"
   override-compile-option = ""
@@ -17,4 +17,4 @@
 [dependencies]
   # 开发期用 **path 依赖**指向同工作区的 xisp 源码：改 xisp 不必每次都发版，
   # 等数组模块稳定后再改回中心仓版本号统一发布（path 依赖不能发布，见 README）。
-  "ystyle::xisp" = "0.9.2"
+  "ystyle::xisp" = "0.9.3"

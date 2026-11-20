@@ -3,7 +3,7 @@
   name = "xisp_num"
   organization = "ystyle"
   description = "星枢科学计算数值方法：插值、多项式拟合、数值积分、优化与 ODE"
-  version = "0.5.0"
+  version = "0.5.1"
   output-type = "static"
   compile-option = "-O2 -Woff unused"
   override-compile-option = ""
@@ -14,5 +14,5 @@
   repository = "https://gitcode.com/ystyle/xisp-sci"
 
 [dependencies]
-  "ystyle::xisp" = "0.9.2"
-  "ystyle::xisp_array" = "0.5.0"
+  "ystyle::xisp" = "0.9.3"
+  "ystyle::xisp_array" = "0.5.1"

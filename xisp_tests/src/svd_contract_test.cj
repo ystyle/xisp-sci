@@ -64,7 +64,10 @@ class SvdContractTest {
             1.0, 0.0, "秩 1")
         assertLinNum("(cangjie::cond (cangjie::array [[1.0 0.0] [0.0 1.0]]))",
             1.0, 1e-10, "单位阵条件数")
-        assertLinNum("(cangjie::cond (cangjie::array [[1.0 0.0] [0.0 0.001]]))",
+        // 用 `1e-3` 而不是 `0.001`：这一行同时是**科学计数法的回归测试** ——
+        // xisp 0.9.3 之前词法器没有指数分支，`1e-3` 会被切成 `Int(1)` + 符号 `e-3`，
+        // 报 `Undefined variable`。写成科学计数法让这条测试顺带守住那个缺口。
+        assertLinNum("(cangjie::cond (cangjie::array [[1.0 0.0] [0.0 1e-3]]))",
             1000.0, 1e-6, "diag(1,1e-3) 条件数")
     }
 
